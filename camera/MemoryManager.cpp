@@ -50,9 +50,10 @@ void* MemoryManager::allocateBuffer(int width, int height, const char* format, i
     if(mIonFd < 0)
         {
         mIonFd = ion_open();
-        if(mIonFd < 0)
+        if(mIonFd <= 0)
             {
             CAMHAL_LOGEA("ion_open failed!!!");
+            mIonFd = 0;
             return NULL;
             }
         }
@@ -122,10 +123,10 @@ error:
         mErrorNotifier->errorNotify(-ENOMEM);
         }
 
-    if (mIonFd >= 0)
+    if ( 0 < mIonFd )
     {
         ion_close(mIonFd);
-        mIonFd = -1;
+        mIonFd = 0;
     }
 
     LOG_FUNCTION_NAME_EXIT;
