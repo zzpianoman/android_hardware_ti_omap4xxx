@@ -172,6 +172,8 @@ status_t AppCallbackNotifier::initialize()
 {
     LOG_FUNCTION_NAME;
 
+    mPreviewMemory = 0;
+
     mMeasurementEnabled = false;
 
     mNotifierState = NOTIFIER_STOPPED;
@@ -796,7 +798,9 @@ void AppCallbackNotifier::copyAndSendPreviewFrame(CameraFrame* frame, int32_t ms
     if((mNotifierState == AppCallbackNotifier::NOTIFIER_STARTED) &&
        mCameraHal->msgTypeEnabled(msgType) &&
        (dest != NULL)) {
-        mDataCb(msgType, mPreviewMemory, mPreviewBufCount, NULL, mCallbackCookie);
+        AutoMutex locker(mLock);
+        if ( mPreviewMemory )
+            mDataCb(msgType, mPreviewMemory, mPreviewBufCount, NULL, mCallbackCookie);
     }
 
     // increment for next buffer
@@ -1575,6 +1579,7 @@ status_t AppCallbackNotifier::stopPreviewCallbacks()
     {
     Mutex::Autolock lock(mLock);
     mPreviewMemory->release(mPreviewMemory);
+    mPreviewMemory = 0;
     }
 
     mPreviewing = false;
