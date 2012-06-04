@@ -79,16 +79,21 @@ void* MemoryManager::allocateBuffer(int width, int height, const char* format, i
         {
         struct ion_handle *handle;
         int mmap_fd;
+        size_t stride;
 
         ///1D buffers
         for (int i = 0; i < numBufs; i++)
             {
             int ret = ion_alloc(mIonFd, bytes, 0, 1 << ION_HEAP_TYPE_CARVEOUT, &handle);
-            if(ret < 0)
-                {
-                CAMHAL_LOGEB("ion_alloc resulted in error %d", ret);
+            if((ret < 0) || ((int)handle == -ENOMEM)) {
+                ret = ion_alloc_tiler(mIonFd, (size_t)bytes, 1, TILER_PIXEL_FMT_PAGE,
+                OMAP_ION_HEAP_TILER_MASK, &handle, &stride);
+            }
+
+            if((ret < 0) || ((int)handle == -ENOMEM)) {
+                CAMHAL_LOGEB("FAILED to allocate ion buffer of size=%d. ret=%d(0x%x)", bytes, ret, ret);
                 goto error;
-                }
+            }
 
             CAMHAL_LOGDB("Before mapping, handle = %x, nSize = %d", handle, bytes);
             if ((ret = ion_map(mIonFd, handle, bytes, PROT_READ | PROT_WRITE, MAP_SHARED, 0,
@@ -97,7 +102,7 @@ void* MemoryManager::allocateBuffer(int width, int height, const char* format, i
                 CAMHAL_LOGEB("Userspace mapping of ION buffers returned error %d", ret);
                 ion_free(mIonFd, handle);
                 goto error;
-                }
+            }
 
             mIonHandleMap.add(bufsArr[i], (unsigned int)handle);
             mIonFdMap.add(bufsArr[i], (unsigned int) mmap_fd);
