@@ -39,6 +39,7 @@
 #include <system/graphics.h>
 
 #define ASPECT_RATIO_TOLERANCE 0.02f
+#include "sw_vsync.h"
 
 #define min(a, b) ( { typeof(a) __a = (a), __b = (b); __a < __b ? __a : __b; } )
 #define max(a, b) ( { typeof(a) __a = (a), __b = (b); __a > __b ? __a : __b; } )
@@ -151,6 +152,7 @@ struct omap4_hwc_device {
     int ext_ovls_wanted;        /* # of overlays that should be on external display for current composition */
     int last_ext_ovls;          /* # of overlays on external/internal display for last composition */
     int last_int_ovls;
+    bool use_sw_vsync;
 };
 typedef struct omap4_hwc_device omap4_hwc_device_t;
 
@@ -1961,6 +1963,14 @@ static int omap4_hwc_event_control(struct hwc_composer_device_1* dev,
         int val = !!enabled;
         int err;
 
+        if (hwc_dev->use_sw_vsync) {
+            if (enabled)
+                start_sw_vsync(hwc_dev);
+            else
+                stop_sw_vsync();
+            return 0;
+        }
+
         err = ioctl(hwc_dev->fb_fd, OMAPFB_ENABLEVSYNC, &val);
         if (err < 0)
             return -errno;
@@ -2010,6 +2020,12 @@ static int omap4_hwc_device_open(const hw_module_t* module, const char* name,
 
     hwc_dev->base.common.tag = HARDWARE_DEVICE_TAG;
     hwc_dev->base.common.version = HWC_DEVICE_API_VERSION_1_0;
+
+    if (use_sw_vsync()) {
+        hwc_dev->use_sw_vsync = true;
+        init_sw_vsync(hwc_dev);
+    }
+
     hwc_dev->base.common.module = (hw_module_t *)module;
     hwc_dev->base.common.close = omap4_hwc_device_close;
     hwc_dev->base.prepare = omap4_hwc_prepare;
