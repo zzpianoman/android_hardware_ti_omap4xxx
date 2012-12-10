@@ -800,6 +800,9 @@ static int omap4_hwc_is_valid_layer(omap4_hwc_device_t *hwc_dev,
     if ((layer->flags & HWC_SKIP_LAYER) || !handle)
         return 0;
 
+    if (layer->compositionType == HWC_FRAMEBUFFER_TARGET)
+        return false;
+
     if (!omap4_hwc_is_valid_format(handle->iFormat))
         return 0;
 
@@ -975,6 +978,7 @@ struct counts {
     unsigned int NV12;
     unsigned int dockable;
     unsigned int protected;
+    uint32_t framebuffer; 
 
     unsigned int max_hw_overlays;
     unsigned int max_scaling_overlays;
@@ -990,7 +994,12 @@ static void gather_layer_statistics(omap4_hwc_device_t *hwc_dev, struct counts *
         hwc_layer_1_t *layer = &list->hwLayers[i];
         IMG_native_handle_t *handle = (IMG_native_handle_t *)layer->handle;
 
-        layer->compositionType = HWC_FRAMEBUFFER;
+        if (layer->compositionType == HWC_FRAMEBUFFER_TARGET) {
+            num->framebuffer++;
+            num->composited_layers--;
+        } else {
+            layer->compositionType = HWC_FRAMEBUFFER;
+        }
 
         if (omap4_hwc_is_valid_layer(hwc_dev, layer, handle)) {
             num->possible_overlay_layers++;
@@ -1518,6 +1527,15 @@ static int omap4_hwc_set(struct hwc_composer_device_1 *dev,
                 ALOGE("eglSwapBuffers error");
                 err = HWC_EGL_ERROR;
                 goto err_out;
+            }
+            if (list) {
+                if (hwc_dev->counts.framebuffer) {
+                    /* Layer with HWC_FRAMEBUFFER_TARGET should be last in the list. The buffer handle
+                     * is updated by SurfaceFlinger after prepare() call, so FB slot has to be updated
+                     * in set().
+                     */
+                    hwc_dev->buffers[0] = list->hwLayers[list->numHwLayers - 1].handle;
+                }
             }
         }
 
