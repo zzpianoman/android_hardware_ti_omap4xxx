@@ -39,6 +39,7 @@
 #include <system/graphics.h>
 
 #define ASPECT_RATIO_TOLERANCE 0.02f
+#include "display.h"
 #include "sw_vsync.h"
 
 #define min(a, b) ( { typeof(a) __a = (a), __b = (b); __a < __b ? __a : __b; } )
@@ -153,6 +154,8 @@ struct omap4_hwc_device {
     int last_ext_ovls;          /* # of overlays on external/internal display for last composition */
     int last_int_ovls;
     bool use_sw_vsync;
+
+    display_t *displays[MAX_DISPLAYS]; 
 };
 typedef struct omap4_hwc_device omap4_hwc_device_t;
 
@@ -860,7 +863,7 @@ static int omap4_hwc_set_best_hdmi_mode(omap4_hwc_device_t *hwc_dev, __u32 xres,
 {
     struct _qdis {
         struct dsscomp_display_info dis;
-        struct dsscomp_videomode modedb[32];
+        struct dsscomp_videomode modedb[MAX_DISPLAY_CONFIGS];
     } d = { .dis = { .ix = 1 } };
     omap4_hwc_ext_t *ext = &hwc_dev->ext;
 
@@ -1726,6 +1729,7 @@ static int omap4_hwc_device_close(hw_device_t* device)
             close(hwc_dev->fb_fd);
         /* pthread will get killed when parent process exits */
         pthread_mutex_destroy(&hwc_dev->lock);
+        free_displays(hwc_dev);
         free(hwc_dev);
     }
 
@@ -2007,6 +2011,17 @@ static int omap4_hwc_blank(struct hwc_composer_device_1 *dev, int dpy, int blank
     return 0;
 }
 
+static int hwc_getDisplayConfigs(struct hwc_composer_device_1* dev, int disp, uint32_t* configs, size_t* numConfigs)
+{
+    return get_display_configs((omap_hwc_device_t *)dev, disp, configs, numConfigs);
+}
+
+static int hwc_getDisplayAttributes(struct hwc_composer_device_1* dev, int disp,
+                                    uint32_t config, const uint32_t* attributes, int32_t* values)
+{
+    return get_display_attributes((omap_hwc_device_t *)dev, disp, config, attributes, values);
+}
+
 static int omap4_hwc_device_open(const hw_module_t* module, const char* name,
                 hw_device_t** device)
 {
@@ -2053,6 +2068,8 @@ static int omap4_hwc_device_open(const hw_module_t* module, const char* name,
     hwc_dev->base.query = omap4_hwc_query;
     hwc_dev->base.registerProcs = omap4_hwc_registerProcs;
     hwc_dev->base.dump = omap4_hwc_dump;
+    hwc_dev->base.getDisplayConfigs = hwc_getDisplayConfigs;
+    hwc_dev->base.getDisplayAttributes = hwc_getDisplayAttributes;
     hwc_dev->fb_dev = hwc_mod->fb_dev;
     *device = &hwc_dev->base.common;
 
@@ -2098,12 +2115,9 @@ static int omap4_hwc_device_open(const hw_module_t* module, const char* name,
         goto done;
     }
 
-    int ret = ioctl(hwc_dev->dsscomp_fd, DSSCIOC_QUERY_DISPLAY, &hwc_dev->fb_dis);
-    if (ret) {
-        ALOGE("failed to get display info (%d): %m", errno);
-        err = -errno;
+    err = init_primary_display(hwc_dev);
+    if (err)
         goto done;
-    }
 
     if (hwc_dev->fb_dis.timings.x_res && hwc_dev->fb_dis.height_in_mm) {
         hwc_dev->ext.lcd_xpy = (float)
@@ -2188,6 +2202,7 @@ done:
             close(hwc_dev->fb_fd);
         pthread_mutex_destroy(&hwc_dev->lock);
         free(hwc_dev->buffers);
+        free_displays(hwc_dev);
         free(hwc_dev);
     }
 
