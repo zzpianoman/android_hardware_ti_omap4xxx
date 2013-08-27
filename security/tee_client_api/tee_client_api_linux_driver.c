@@ -783,7 +783,7 @@ TEEC_Result TEEC_OpenSessionEx (
        */
        if (connectionData != NULL)
        {
-           *(uint32_t*)sCommand.sOpenClientSession.sLoginData = *(uint32_t*)connectionData;
+           memcpy(&sCommand.sOpenClientSession.sLoginData, &connectionData, sizeof(uint32_t));
            sCommand.sHeader.nMessageSize += sizeof(uint32_t);
        }
    }
