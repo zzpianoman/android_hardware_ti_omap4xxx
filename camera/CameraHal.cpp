@@ -2482,6 +2482,12 @@ status_t CameraHal::takePicture( )
     const char *valstr = NULL;
     unsigned int bufferCount = 1;
 
+    // cancel AF state if needed (before any operation and mutex lock)
+    if ((mCameraAdapter->getState() == CameraAdapter::AF_STATE) ||
+        (mCameraAdapter->getState() == CameraAdapter::VIDEO_AF_STATE)) {
+        cancelAutoFocus();
+    }
+
     Mutex::Autolock lock(mLock);
 
 #if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
@@ -2562,7 +2568,8 @@ status_t CameraHal::takePicture( )
         // pause preview during normal image capture
         // do not pause preview if recording (video state)
         if ( (NO_ERROR == ret) && (NULL != mDisplayAdapter.get()) ) {
-            if (mCameraAdapter->getState() != CameraAdapter::VIDEO_STATE) {
+            if ((mCameraAdapter->getState() != CameraAdapter::VIDEO_STATE) &&
+                (mCameraAdapter->getState() != CameraAdapter::VIDEO_AF_STATE)) {
                 mDisplayPaused = true;
                 mPreviewEnabled = false;
                 ret = mDisplayAdapter->pauseDisplay(mDisplayPaused);
@@ -2578,7 +2585,8 @@ status_t CameraHal::takePicture( )
         }
 
         // if we taking video snapshot...
-        if ((NO_ERROR == ret) && (mCameraAdapter->getState() == CameraAdapter::VIDEO_STATE)) {
+        if ((NO_ERROR == ret) && ((mCameraAdapter->getState() == CameraAdapter::VIDEO_STATE) ||
+            (mCameraAdapter->getState() == CameraAdapter::VIDEO_AF_STATE))) {
             // enable post view frames if not already enabled so we can internally
             // save snapshot frames for generating thumbnail
             if((mMsgEnabled & CAMERA_MSG_POSTVIEW_FRAME) == 0) {

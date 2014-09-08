@@ -2005,6 +2005,12 @@ status_t BaseCameraAdapter::setState(CameraCommands operation)
                     mNextState = VIDEO_STATE;
                     break;
 
+                case CAMERA_USE_BUFFERS_IMAGE_CAPTURE:
+                    CAMHAL_LOGDB("Adapter state switch VIDEO_AF_STATE->VIDEO_LOADED_CAPTURE_STATE event = %s",
+                            printState);
+                    mNextState = VIDEO_LOADED_CAPTURE_STATE;
+                    break;
+
                 default:
                     CAMHAL_LOGEB("Adapter state switch VIDEO_AF_STATE Invalid Op! event = 0x%x",
                                  operation);
