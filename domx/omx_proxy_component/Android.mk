@@ -12,7 +12,8 @@ LOCAL_C_INCLUDES += \
 	$(LOCAL_PATH)/../domx \
 	$(LOCAL_PATH)/../domx/omx_rpc/inc \
 	$(HARDWARE_TI_OMAP4_BASE)/../../libhardware/include \
-	$(HARDWARE_TI_OMAP4_BASE)/hwc/
+	$(HARDWARE_TI_OMAP4_BASE)/hwc/ \
+	frameworks/native/include/media/openmax
 
 LOCAL_SHARED_LIBRARIES := \
 	libmm_osal \
@@ -41,7 +42,8 @@ LOCAL_C_INCLUDES += \
 	$(LOCAL_PATH)/../omx_core/inc \
 	$(LOCAL_PATH)/../mm_osal/inc \
 	$(LOCAL_PATH)/../domx \
-	$(LOCAL_PATH)/../domx/omx_rpc/inc
+	$(LOCAL_PATH)/../domx/omx_rpc/inc \
+	frameworks/native/include/media/openmax
 
 LOCAL_SHARED_LIBRARIES := \
 	libmm_osal \
@@ -71,7 +73,8 @@ LOCAL_C_INCLUDES += \
 	$(LOCAL_PATH)/../mm_osal/inc \
 	$(LOCAL_PATH)/../domx \
 	$(HARDWARE_TI_OMAP4_BASE)/ion/ \
-	$(LOCAL_PATH)/../domx/omx_rpc/inc
+	$(LOCAL_PATH)/../domx/omx_rpc/inc \
+	frameworks/native/include/media/openmax
 
 LOCAL_SHARED_LIBRARIES := \
 	libmm_osal \
@@ -105,7 +108,8 @@ LOCAL_C_INCLUDES += \
 	$(LOCAL_PATH)/../../hwc \
 	$(HARDWARE_TI_OMAP4_BASE)/camera/inc \
 	frameworks/base/include/media/stagefright \
-	frameworks/native/include/media/hardware
+	frameworks/native/include/media/hardware \
+	frameworks/native/include/media/openmax
 
 LOCAL_SHARED_LIBRARIES := \
 	libmm_osal \
@@ -141,7 +145,8 @@ LOCAL_C_INCLUDES += \
 	$(LOCAL_PATH)/../../hwc \
 	$(HARDWARE_TI_OMAP4_BASE)/camera/inc \
 	frameworks/base/include/media/stagefright \
-	frameworks/native/include/media/hardware
+	frameworks/native/include/media/hardware \
+	frameworks/native/include/media/openmax
 
 LOCAL_SHARED_LIBRARIES := \
 	libmm_osal \
@@ -173,7 +178,8 @@ LOCAL_C_INCLUDES += \
 	$(LOCAL_PATH)/../domx \
 	$(LOCAL_PATH)/../domx/omx_rpc/inc \
 	$(HARDWARE_TI_OMAP4_BASE)/../../libhardware/include \
-	$(HARDWARE_TI_OMAP4_BASE)/hwc/
+	$(HARDWARE_TI_OMAP4_BASE)/hwc/ \
+	frameworks/native/include/media/openmax
 
 LOCAL_SHARED_LIBRARIES := \
 	libmm_osal \
@@ -192,3 +198,4 @@ LOCAL_MODULE_TAGS:= optional
 LOCAL_SRC_FILES:= omx_video_dec/src/omx_proxy_videodec_secure.c
 LOCAL_MODULE:= libOMX.TI.DUCATI1.VIDEO.DECODER.secure
 include $(BUILD_HEAPTRACKED_SHARED_LIBRARY)
+

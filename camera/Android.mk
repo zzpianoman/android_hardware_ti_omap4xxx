@@ -124,7 +124,8 @@ LOCAL_C_INCLUDES += \
     frameworks/base/include/ui \
     frameworks/base/include/utils \
     frameworks/base/include/media/stagefright/openmax \
-    system/media/camera/include
+    system/media/camera/include \
+    frameworks/native/include/media/openmax 
 
 LOCAL_SHARED_LIBRARIES:= \
     libui \
