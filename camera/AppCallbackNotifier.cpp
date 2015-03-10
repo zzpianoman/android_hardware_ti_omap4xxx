@@ -746,7 +746,7 @@ void AppCallbackNotifier::copyAndSendPreviewFrame(CameraFrame* frame, int32_t ms
 
         CAMHAL_LOGVB("%d:copy2Dto1D(%p, %p, %d, %d, %d, %d, %d,%s)",
                      __LINE__,
-                      dest,
+                      buf,
                       frame->mBuffer,
                       frame->mWidth,
                       frame->mHeight,
