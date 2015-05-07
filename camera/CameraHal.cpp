@@ -434,6 +434,7 @@ int CameraHal::setParameters(const CameraParameters& params)
                 {
                 CAMHAL_LOGDB("Recording Hint is set to %s", valstr);
                 mParameters.set(CameraParameters::KEY_RECORDING_HINT, valstr);
+		videoMode = false;
                 restartPreviewRequired |= resetVideoModeParameters();
                 params.getPreviewSize(&mVideoWidth, &mVideoHeight);
                 }
@@ -451,23 +452,30 @@ int CameraHal::setParameters(const CameraParameters& params)
             // then Video Mode parameters may remain present in ImageCapture activity as well.
             CAMHAL_LOGDA("Recording Hint is set to NULL");
             mParameters.set(CameraParameters::KEY_RECORDING_HINT, "");
+	    videoMode = false;
             restartPreviewRequired |= resetVideoModeParameters();
             params.getPreviewSize(&mVideoWidth, &mVideoHeight);
             }
 
         if ((valstr = params.get(CameraParameters::KEY_FOCUS_MODE)) != NULL) {
             if (isParameterValid(valstr, mCameraProperties->get(CameraProperties::SUPPORTED_FOCUS_MODES))) {
-                CAMHAL_LOGDB("Focus mode set %s", valstr);
 
                 // we need to take a decision on the capture mode based on whether CAF picture or
                 // video is chosen so the behavior of each is consistent to the application
+		// if we are in videoMode, don't set FOCUS_MODE to CONTINUOUS_PICTURE
                 if(strcmp(valstr, CameraParameters::FOCUS_MODE_CONTINUOUS_PICTURE) == 0){
-                    restartPreviewRequired |= resetVideoModeParameters();
+		    if (videoMode) {
+			valstr = CameraParameters::FOCUS_MODE_CONTINUOUS_VIDEO;
+			restartPreviewRequired |= setVideoModeParameters(params);
+		    } else {
+			restartPreviewRequired |= resetVideoModeParameters();
+		    }
                 } else if (strcmp(valstr, CameraParameters::FOCUS_MODE_CONTINUOUS_VIDEO) == 0){
-                    restartPreviewRequired |= setVideoModeParameters(params);
+		    	restartPreviewRequired |= setVideoModeParameters(params);
                 }
+                CAMHAL_LOGDB("Focus mode set %s", valstr);
+		mParameters.set(CameraParameters::KEY_FOCUS_MODE, valstr);
 
-                mParameters.set(CameraParameters::KEY_FOCUS_MODE, valstr);
              } else {
                 CAMHAL_LOGEB("ERROR: Invalid FOCUS mode = %s", valstr);
                 return BAD_VALUE;
