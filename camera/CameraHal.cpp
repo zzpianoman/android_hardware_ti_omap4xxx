@@ -43,7 +43,7 @@ extern "C" CameraAdapter* CameraAdapter_Factory(size_t);
 ////       Currently, they are hard-coded
 
 const int CameraHal::NO_BUFFERS_PREVIEW = MAX_CAMERA_BUFFERS;
-const int CameraHal::NO_BUFFERS_IMAGE_CAPTURE = 2;
+const int CameraHal::NO_BUFFERS_IMAGE_CAPTURE = 5;
 
 const uint32_t MessageNotifier::EVENT_BIT_FIELD_POSITION = 0;
 const uint32_t MessageNotifier::FRAME_BIT_FIELD_POSITION = 0;
