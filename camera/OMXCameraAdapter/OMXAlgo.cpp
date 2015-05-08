@@ -1062,69 +1062,77 @@ status_t OMXCameraAdapter::setSensorOrientation(unsigned int degree)
         }
 
     /* Set Temproary Port resolution.
-    * For resolution with height > 1008,resolution cannot be set without configuring orientation.
+    * For resolution with height >= 720,
+    * resolution cannot be set without configuring orientation.
     * So we first set a temp resolution. We have used VGA
     */
-    tmpHeight = mPreviewData->mHeight;
-    tmpWidth = mPreviewData->mWidth;
-    mPreviewData->mWidth = 640;
-    mPreviewData->mHeight = 480;
-    ret = setFormat(OMX_CAMERA_PORT_VIDEO_OUT_PREVIEW, *mPreviewData);
-    if ( ret != NO_ERROR )
-        {
-        CAMHAL_LOGEB("setFormat() failed %d", ret);
+    if ( mPreviewData->mHeight >= 720 ) {
+        tmpHeight = mPreviewData->mHeight;
+        tmpWidth = mPreviewData->mWidth;
+        mPreviewData->mWidth = 640;
+        mPreviewData->mHeight = 480;
+
+        ret = setFormat(OMX_CAMERA_PORT_VIDEO_OUT_PREVIEW, *mPreviewData);
+        if ( NO_ERROR != ret ) {
+            CAMHAL_LOGEB("Error while configuring format 0x%x", ret);
+            return ret;
         }
 
+        mPreviewData->mWidth = tmpWidth;
+        mPreviewData->mHeight = tmpHeight;
+        mPreviewPortInitialized = true;
+    }
+    else if (!mPreviewPortInitialized) {
+        ret = setFormat(OMX_CAMERA_PORT_VIDEO_OUT_PREVIEW, *mPreviewData);
+        if ( NO_ERROR != ret ) {
+            CAMHAL_LOGEB("Error while configuring format 0x%x", ret);
+            return ret;
+        }
+        mPreviewPortInitialized = true;
+    }
+
     /* Now set Required Orientation*/
-    if ( NO_ERROR == ret )
-        {
+    if ( NO_ERROR == ret ) {
         OMX_INIT_STRUCT(sensorOrientation, OMX_CONFIG_ROTATIONTYPE);
-        sensorOrientation.nPortIndex = mCameraAdapterParameters.mPrevPortIndex;
-        eError = OMX_GetConfig(mCameraAdapterParameters.mHandleComp,
-                               OMX_IndexConfigCommonRotate,
-                               &sensorOrientation);
-        if ( OMX_ErrorNone != eError )
-            {
-            CAMHAL_LOGEB("Error while Reading Sensor Orientation :  0x%x", eError);
-            }
-        CAMHAL_LOGVB(" Currently Sensor Orientation is set to : %d",
-                     ( unsigned int ) sensorOrientation.nRotation);
         sensorOrientation.nPortIndex = mCameraAdapterParameters.mPrevPortIndex;
         sensorOrientation.nRotation = degree;
         eError = OMX_SetConfig(mCameraAdapterParameters.mHandleComp,
                                OMX_IndexConfigCommonRotate,
                                &sensorOrientation);
-        if ( OMX_ErrorNone != eError )
-            {
+        if ( OMX_ErrorNone != eError ) {
             CAMHAL_LOGEB("Error while configuring rotation 0x%x", eError);
-            }
-        CAMHAL_LOGVA(" Read the Parameters that are set");
-        eError = OMX_GetConfig(mCameraAdapterParameters.mHandleComp,
-                               OMX_IndexConfigCommonRotate,
-                               &sensorOrientation);
-        if ( OMX_ErrorNone != eError )
-            {
-            CAMHAL_LOGEB("Error while Reading Sensor Orientation :  0x%x", eError);
-            }
+        }
         CAMHAL_LOGVB(" Currently Sensor Orientation is set to : %d",
                      ( unsigned int ) sensorOrientation.nRotation);
         CAMHAL_LOGVB(" Sensor Configured for Port : %d",
                      ( unsigned int ) sensorOrientation.nPortIndex);
-        }
+    }
 
     /* Now set the required resolution as requested */
-
-    mPreviewData->mWidth = tmpWidth;
-    mPreviewData->mHeight = tmpHeight;
-    if ( NO_ERROR == ret )
-        {
-        ret = setFormat (mCameraAdapterParameters.mPrevPortIndex,
-                         mCameraAdapterParameters.mCameraPortParams[mCameraAdapterParameters.mPrevPortIndex]);
-        if ( NO_ERROR != ret )
-            {
-            CAMHAL_LOGEB("setFormat() failed %d", ret);
-            }
+    if ( NO_ERROR == ret ) {
+        bool portConfigured = false;
+        ret = setSensorQuirks(degree,
+                mCameraAdapterParameters.mCameraPortParams[mCameraAdapterParameters.mPrevPortIndex],
+                portConfigured);
+        if ( NO_ERROR != ret ) {
+            CAMHAL_LOGEB("Error while configuring setSensorQuirks 0x%x", ret);
+            return ret;
         }
+
+        if ( !portConfigured ) {
+            ret = setFormat (mCameraAdapterParameters.mPrevPortIndex,
+                             mCameraAdapterParameters.mCameraPortParams[mCameraAdapterParameters.mPrevPortIndex]);
+            if ( NO_ERROR != ret ) {
+                CAMHAL_LOGEB("Error while configuring format 0x%x", ret);
+                return ret;
+            }
+
+            // Another WA: Setting the port definition will reset the VFR
+            //             configuration.
+            setVFramerate(mPreviewData->mMinFrameRate,
+                          mPreviewData->mMaxFrameRate);
+        }
+    }
 
     LOG_FUNCTION_NAME_EXIT;
 

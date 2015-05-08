@@ -768,6 +768,78 @@ void OMXCameraAdapter::getParameters(CameraParameters& params)
     LOG_FUNCTION_NAME_EXIT;
 }
 
+status_t OMXCameraAdapter::setSensorQuirks(int orientation,
+                                           OMXCameraPortParameters &portParams,
+                                           bool &portConfigured)
+{
+    status_t overclockStatus = NO_ERROR;
+    size_t overclockWidth;
+    size_t overclockHeight;
+    OMX_ERRORTYPE eError = OMX_ErrorNone;
+    OMX_PARAM_PORTDEFINITIONTYPE portCheck;
+
+    LOG_FUNCTION_NAME;
+
+    portConfigured = false;
+    OMX_INIT_STRUCT_PTR (&portCheck, OMX_PARAM_PORTDEFINITIONTYPE);
+
+    portCheck.nPortIndex = mCameraAdapterParameters.mPrevPortIndex;
+
+    eError = OMX_GetParameter (mCameraAdapterParameters.mHandleComp,
+                               OMX_IndexParamPortDefinition,
+                               &portCheck);
+
+    if ( eError != OMX_ErrorNone ) {
+        CAMHAL_LOGEB("OMX_GetParameter - %x", eError);
+        return ErrorUtils::omxToAndroidError(eError);
+    }
+
+    if ( ( orientation == 90 ) || ( orientation == 270 ) ) {
+        overclockWidth = 1080;
+        overclockHeight = 1920;
+    } else {
+        overclockWidth = 1920;
+        overclockHeight = 1080;
+    }
+
+    if( ( ( portParams.mWidth >= overclockWidth ) &&
+          ( portParams.mHeight >= overclockHeight ) &&
+          ( portParams.mFrameRate >= FRAME_RATE_FULL_HD ) ) ||
+        ( ( portParams.mWidth >= overclockWidth ) &&
+          ( portParams.mHeight >= overclockHeight ) ) ) {
+        overclockStatus = setSensorOverclock(true);
+    } else {
+
+        //WA: If the next port resolution doesn't require
+        //    sensor overclocking, but the previous resolution
+        //    needed it, then we have to first set new port
+        //    resolution and then disable sensor overclocking.
+        if( ( ( portCheck.format.video.nFrameWidth >= overclockWidth ) &&
+              ( portCheck.format.video.nFrameHeight >= overclockHeight ) &&
+              ( ( portCheck.format.video.xFramerate >> 16 ) >= FRAME_RATE_FULL_HD ) ) ||
+              ( ( portCheck.format.video.nFrameWidth >= overclockWidth ) &&
+              ( portCheck.format.video.nFrameHeight >= overclockHeight ) ) ) {
+            status_t ret = setFormat(mCameraAdapterParameters.mPrevPortIndex,
+                                     portParams);
+            if ( NO_ERROR != ret ) {
+                return ret;
+            }
+
+            // Another WA: Setting the port definition will reset the VFR
+            //             configuration.
+            setVFramerate(portParams.mMinFrameRate, portParams.mMaxFrameRate);
+
+            portConfigured = true;
+        }
+
+        overclockStatus = setSensorOverclock(false);
+    }
+
+    LOG_FUNCTION_NAME_EXIT;
+
+    return overclockStatus;
+}
+
 status_t OMXCameraAdapter::setFormat(OMX_U32 port, OMXCameraPortParameters &portParams)
 {
     size_t bufferCount;
@@ -795,17 +867,7 @@ status_t OMXCameraAdapter::setFormat(OMX_U32 port, OMXCameraPortParameters &port
         portCheck.format.video.nFrameHeight     = portParams.mHeight;
         portCheck.format.video.eColorFormat     = portParams.mColorFormat;
         portCheck.format.video.nStride          = portParams.mStride;
-        if( ( portCheck.format.video.nFrameWidth >= 1920 ) &&
-            ( portCheck.format.video.nFrameHeight >= 1080 ) &&
-            ( portParams.mFrameRate >= FRAME_RATE_FULL_HD ) )
-            {
-            setSensorOverclock(true);
-            }
-        else
-            {
-            setSensorOverclock(false);
-            }
-
+        
         portCheck.format.video.xFramerate       = portParams.mFrameRate<<16;
         portCheck.nBufferSize                   = portParams.mStride * portParams.mHeight;
         portCheck.nBufferCountActual = portParams.mNumBufs;
