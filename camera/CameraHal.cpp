@@ -3454,7 +3454,9 @@ void CameraHal::forceStopPreview()
     LOG_FUNCTION_NAME;
 
     // stop bracketing if it is running
-    stopImageBracketing();
+    if ( mBracketingRunning ) {
+        stopImageBracketing();
+    }
 
     if(mDisplayAdapter.get() != NULL) {
         ///Stop the buffer display first
