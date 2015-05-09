@@ -1156,8 +1156,14 @@ status_t OMXCameraAdapter::setVFramerate(OMX_U32 minFrameRate, OMX_U32 maxFrameR
 
     // The port framerate should never be smaller
     // than max framerate.
+#if 0
     if (  mPreviewData->mFrameRate < maxFrameRate ) {
         return NO_INIT;
+    }
+#endif
+
+    if ( !mSetFormatDone ) {
+	return NO_INIT;
     }
 
     if ( NO_ERROR == ret ) {
