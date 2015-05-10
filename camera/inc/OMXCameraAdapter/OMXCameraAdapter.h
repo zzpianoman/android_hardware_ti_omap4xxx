@@ -231,7 +231,7 @@ public:
 
     enum CodingMode
         {
-        CodingNone = 0,
+        CodingJPEG = 0,
         CodingJPS,
         CodingMPO,
         CodingRAWJPEG,

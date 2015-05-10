@@ -877,44 +877,24 @@ status_t OMXCameraAdapter::setFormat(OMX_U32 port, OMXCameraPortParameters &port
         portCheck.nBufferCountActual = portParams.mNumBufs;
         mFocusThreshold = FOCUS_THRESHOLD * portParams.mFrameRate;
         }
-    else if ( OMX_CAMERA_PORT_IMAGE_OUT_IMAGE == port )
-        {
+    else if (OMX_CAMERA_PORT_IMAGE_OUT_IMAGE == port) {
         portCheck.format.image.nFrameWidth      = portParams.mWidth;
         portCheck.format.image.nFrameHeight     = portParams.mHeight;
-        if ( OMX_COLOR_FormatUnused == portParams.mColorFormat && mCodingMode == CodingNone )
-            {
-            portCheck.format.image.eColorFormat     = OMX_COLOR_FormatCbYCrY;
-            portCheck.format.image.eCompressionFormat = OMX_IMAGE_CodingJPEG;
+        if (OMX_COLOR_FormatUnused == portParams.mColorFormat) {
+            portCheck.format.image.eColorFormat = OMX_COLOR_FormatCbYCrY;
+            if (mCodingMode == CodingJPEG) {
+                portCheck.format.image.eCompressionFormat = OMX_IMAGE_CodingJPEG;
+            } else if (mCodingMode == CodingJPS) {
+                portCheck.format.image.eCompressionFormat = (OMX_IMAGE_CODINGTYPE) OMX_TI_IMAGE_CodingJPS;
+            } else if (mCodingMode == CodingMPO) {
+                portCheck.format.image.eCompressionFormat = (OMX_IMAGE_CODINGTYPE) OMX_TI_IMAGE_CodingMPO;
+            } else {
+                portCheck.format.image.eCompressionFormat = OMX_IMAGE_CodingUnused;
             }
-        else if ( OMX_COLOR_FormatUnused == portParams.mColorFormat && mCodingMode == CodingJPS )
-            {
-            portCheck.format.image.eColorFormat       = OMX_COLOR_FormatCbYCrY;
-            portCheck.format.image.eCompressionFormat = (OMX_IMAGE_CODINGTYPE) OMX_TI_IMAGE_CodingJPS;
-            }
-        else if ( OMX_COLOR_FormatUnused == portParams.mColorFormat && mCodingMode == CodingMPO )
-            {
-            portCheck.format.image.eColorFormat       = OMX_COLOR_FormatCbYCrY;
-            portCheck.format.image.eCompressionFormat = (OMX_IMAGE_CODINGTYPE) OMX_TI_IMAGE_CodingMPO;
-            }
-        else if ( OMX_COLOR_FormatUnused == portParams.mColorFormat && mCodingMode == CodingRAWJPEG )
-            {
-            //TODO: OMX_IMAGE_CodingJPEG should be changed to OMX_IMAGE_CodingRAWJPEG when
-            // RAW format is supported
-            portCheck.format.image.eColorFormat       = OMX_COLOR_FormatCbYCrY;
-            portCheck.format.image.eCompressionFormat = OMX_IMAGE_CodingJPEG;
-            }
-        else if ( OMX_COLOR_FormatUnused == portParams.mColorFormat && mCodingMode == CodingRAWMPO )
-            {
-            //TODO: OMX_IMAGE_CodingJPEG should be changed to OMX_IMAGE_CodingRAWMPO when
-            // RAW format is supported
-            portCheck.format.image.eColorFormat       = OMX_COLOR_FormatCbYCrY;
-            portCheck.format.image.eCompressionFormat = OMX_IMAGE_CodingJPEG;
-            }
-        else
-            {
-            portCheck.format.image.eColorFormat     = portParams.mColorFormat;
+        } else {
+            portCheck.format.image.eColorFormat       = portParams.mColorFormat;
             portCheck.format.image.eCompressionFormat = OMX_IMAGE_CodingUnused;
-            }
+        }
 
         //Stride for 1D tiler buffer is zero
         portCheck.format.image.nStride          =  0;

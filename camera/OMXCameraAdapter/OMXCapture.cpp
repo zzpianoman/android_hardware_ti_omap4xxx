@@ -39,6 +39,7 @@ status_t OMXCameraAdapter::setParametersCapture(const CameraParameters &params,
     const char *str = NULL;
     int w, h;
     OMX_COLOR_FORMATTYPE pixFormat;
+    CodingMode codingMode = mCodingMode;
     const char *valstr = NULL;
     int varint = 0;
 
@@ -79,17 +80,17 @@ status_t OMXCameraAdapter::setParametersCapture(const CameraParameters &params,
         } else if (strcmp(valstr, (const char *) CameraParameters::PIXEL_FORMAT_JPEG) == 0) {
             CAMHAL_LOGDA("JPEG format selected");
             pixFormat = OMX_COLOR_FormatUnused;
-            mCodingMode = CodingNone;
+            codingMode = CodingJPEG;
             mPictureFormatFromClient = CameraParameters::PIXEL_FORMAT_JPEG;
         } else if (strcmp(valstr, (const char *) TICameraParameters::PIXEL_FORMAT_JPS) == 0) {
             CAMHAL_LOGDA("JPS format selected");
             pixFormat = OMX_COLOR_FormatUnused;
-            mCodingMode = CodingJPS;
+            codingMode = CodingJPS;
             mPictureFormatFromClient = TICameraParameters::PIXEL_FORMAT_JPS;
         } else if (strcmp(valstr, (const char *) TICameraParameters::PIXEL_FORMAT_MPO) == 0) {
             CAMHAL_LOGDA("MPO format selected");
             pixFormat = OMX_COLOR_FormatUnused;
-            mCodingMode = CodingMPO;
+            codingMode = CodingMPO;
             mPictureFormatFromClient = TICameraParameters::PIXEL_FORMAT_MPO;
         } else if (strcmp(valstr, (const char *) TICameraParameters::PIXEL_FORMAT_RAW) == 0) {
             CAMHAL_LOGDA("RAW Picture format selected");
@@ -98,11 +99,13 @@ status_t OMXCameraAdapter::setParametersCapture(const CameraParameters &params,
         } else {
             CAMHAL_LOGEA("Invalid format, JPEG format selected as default");
             pixFormat = OMX_COLOR_FormatUnused;
+	    codingMode = CodingJPEG;
             mPictureFormatFromClient = NULL;
         }
     } else {
         CAMHAL_LOGEA("Picture format is NULL, defaulting to JPEG");
         pixFormat = OMX_COLOR_FormatUnused;
+	codingMode = CodingJPEG;
         mPictureFormatFromClient = NULL;
     }
 
@@ -116,10 +119,11 @@ status_t OMXCameraAdapter::setParametersCapture(const CameraParameters &params,
         pixFormat = OMX_COLOR_FormatCbYCrY;
     }
 
-    if ( pixFormat != cap->mColorFormat )
+    if ( pixFormat != cap->mColorFormat || codingMode != mCodingMode)
         {
         mPendingCaptureSettings |= SetFormat;
         cap->mColorFormat = pixFormat;
+	mCodingMode = codingMode;
         }
 
 #ifdef OMAP_ENHANCEMENT
