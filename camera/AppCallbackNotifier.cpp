@@ -900,6 +900,7 @@ void AppCallbackNotifier::notifyFrame()
                     unsigned int current_snapshot = 0;
                     Encoder_libjpeg::params *main_jpeg = NULL, *tn_jpeg = NULL;
                     void* exif_data = NULL;
+                    const char *previewFormat = NULL;
                     camera_memory_t* raw_picture = mRequestMemory(-1, frame->mLength, 1, NULL);
 
                     if(raw_picture) {
@@ -952,8 +953,9 @@ void AppCallbackNotifier::notifyFrame()
 
                     tn_width = parameters.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH);
                     tn_height = parameters.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT);
+                    previewFormat = parameters.getPreviewFormat();
 
-                    if ((tn_width > 0) && (tn_height > 0)) {
+                    if ((tn_width > 0) && (tn_height > 0) && ( NULL != previewFormat )) {
                         tn_jpeg = (Encoder_libjpeg::params*)
                                       malloc(sizeof(Encoder_libjpeg::params));
                         // if malloc fails just keep going and encode main jpeg
@@ -987,8 +989,8 @@ void AppCallbackNotifier::notifyFrame()
                                                       this,
                                                       raw_picture,
                                                       exif_data);
-                    encoder->run();
                     gEncoderQueue.add(frame->mBuffer, encoder);
+                    encoder->run();
                     encoder.clear();
                     if (params != NULL)
                       {
@@ -1033,7 +1035,7 @@ void AppCallbackNotifier::notifyFrame()
                              ( NULL != mDataCb) &&
                              ( mCameraHal->msgTypeEnabled(CAMERA_MSG_VIDEO_FRAME)  ) )
                     {
-                    mRecordingLock.lock();
+                    android::AutoMutex locker(mRecordingLock);
                     if(mRecording)
                         {
                         if(mUseMetaDataBufferMode)
@@ -1060,6 +1062,7 @@ void AppCallbackNotifier::notifyFrame()
 
                                 void *y_uv[2];
                                 mapper.lock((buffer_handle_t)vBuf, CAMHAL_GRALLOC_USAGE, bounds, y_uv);
+                                y_uv[1] = y_uv[0] + mVideoHeight*4096;
 
                                 structConvImage input =  {(int)frame->mWidth,
                                                           (int)frame->mHeight,
@@ -1111,7 +1114,6 @@ void AppCallbackNotifier::notifyFrame()
                             fakebuf->release(fakebuf);
                             }
                         }
-                    mRecordingLock.unlock();
 
                     }
                 else if(( CameraFrame::SNAPSHOT_FRAME == frame->mFrameType ) &&
