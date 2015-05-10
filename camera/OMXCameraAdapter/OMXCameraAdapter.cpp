@@ -2607,12 +2607,8 @@ void OMXCameraAdapter::onOrientationEvent(uint32_t orientation, uint32_t tilt)
     if (rotation != mDeviceOrientation) {
         mDeviceOrientation = rotation;
 
-        mFaceDetectionLock.lock();
-        if (mFaceDetectionRunning) {
-            // restart face detection with new rotation
-            setFaceDetection(true, mDeviceOrientation);
-        }
-        mFaceDetectionLock.unlock();
+        // restart face detection with new rotation
+        setFaceDetectionOrientation(mDeviceOrientation);
     }
     CAMHAL_LOGVB("orientation = %d tilt = %d device_orientation = %d", orientation, tilt, mDeviceOrientation);
 

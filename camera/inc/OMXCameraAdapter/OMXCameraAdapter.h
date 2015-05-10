@@ -555,6 +555,7 @@ private:
                              BaseCameraAdapter::AdapterState state);
     status_t updateFocusDistances(CameraParameters &params);
     status_t setFaceDetection(bool enable, OMX_U32 orientation);
+    status_t setFaceDetectionOrientation(OMX_U32 orientation);
     status_t detectFaces(OMX_BUFFERHEADERTYPE* pBuffHeader,
                          sp<CameraFDResult> &result,
                          size_t previewWidth,
