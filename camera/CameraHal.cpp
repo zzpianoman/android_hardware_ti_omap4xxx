@@ -2470,7 +2470,7 @@ status_t CameraHal::takePicture( )
     status_t ret = NO_ERROR;
     CameraFrame frame;
     CameraAdapter::BuffersDescriptor desc;
-    int burst;
+    int burst = -1;
     const char *valstr = NULL;
     unsigned int bufferCount = 1;
 
@@ -2508,36 +2508,52 @@ status_t CameraHal::takePicture( )
         return INVALID_OPERATION;
     }
 
-    if ( !mBracketingRunning )
-        {
+    // if we are already in the middle of a capture...then we just need
+    // setParameters and start image capture to queue more shots
+    if (((mCameraAdapter->getState() & CameraAdapter::CAPTURE_STATE) ==
+              CameraAdapter::CAPTURE_STATE) &&
+         (mCameraAdapter->getNextState() != CameraAdapter::PREVIEW_STATE)) {
+#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
+        //pass capture timestamp along with the camera adapter command
+        ret = mCameraAdapter->sendCommand(CameraAdapter::CAMERA_START_IMAGE_CAPTURE,
+                                          (int) &mStartCapture);
+#else
+        ret = mCameraAdapter->sendCommand(CameraAdapter::CAMERA_START_IMAGE_CAPTURE);
+#endif
+        return ret;
+    }
 
-         if ( NO_ERROR == ret )
-            {
+    if ( !mBracketingRunning )
+    {
+         // if application didn't set burst through ShotParameters
+         // then query from TICameraParameters
+         if ((burst == -1) && (NO_ERROR == ret)) {
             burst = mParameters.getInt(TICameraParameters::KEY_BURST);
-            }
+         }
 
          //Allocate all buffers only in burst capture case
-         if ( burst > 1 )
-             {
-             bufferCount = CameraHal::NO_BUFFERS_IMAGE_CAPTURE;
-             if ( NULL != mAppCallbackNotifier.get() )
-                 {
+         if ( burst > 0 ) {
+             // For CPCam mode...allocate for worst case burst
+             bufferCount = (burst > CameraHal::NO_BUFFERS_IMAGE_CAPTURE) ?
+                               CameraHal::NO_BUFFERS_IMAGE_CAPTURE : burst;
+
+             if ( NULL != mAppCallbackNotifier.get() ) {
                  mAppCallbackNotifier->setBurst(true);
-                 }
              }
-         else
-             {
-             if ( NULL != mAppCallbackNotifier.get() )
-                 {
+         } else if ( mBracketingEnabled ) {
+             bufferCount = mBracketRangeNegative + 1;
+             if ( NULL != mAppCallbackNotifier.get() ) {
                  mAppCallbackNotifier->setBurst(false);
-                 }
              }
+         } else {
+             if ( NULL != mAppCallbackNotifier.get() ) {
+                 mAppCallbackNotifier->setBurst(false);
+             }
+         }
 
         // pause preview during normal image capture
         // do not pause preview if recording (video state)
-        if (NO_ERROR == ret &&
-                NULL != mDisplayAdapter.get() &&
-                burst < 1) {
+        if ( (NO_ERROR == ret) && (NULL != mDisplayAdapter.get()) ) {
             if (mCameraAdapter->getState() != CameraAdapter::VIDEO_STATE) {
                 mDisplayPaused = true;
                 mPreviewEnabled = false;
@@ -2577,10 +2593,7 @@ status_t CameraHal::takePicture( )
 
         if ( NO_ERROR == ret )
             {
-            mParameters.getPictureSize(( int * ) &frame.mWidth,
-                                       ( int * ) &frame.mHeight);
-
-            ret = allocImageBufs(frame.mWidth,
+             ret = allocImageBufs(frame.mWidth,
                                  frame.mHeight,
                                  frame.mLength,
                                  mParameters.getPictureFormat(),
