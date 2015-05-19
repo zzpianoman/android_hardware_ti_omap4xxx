@@ -1264,6 +1264,8 @@ private:
     int mVideoWidth;
     int mVideoHeight;
 
+    android::String8 mCapModeBackup;
+
 };
 
 

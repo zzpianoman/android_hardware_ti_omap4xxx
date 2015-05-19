@@ -304,11 +304,31 @@ int CameraHal::setParameters(const CameraParameters& params)
 
 
 
-            if( (valstr = params.get(TICameraParameters::KEY_CAP_MODE)) != NULL)
-                {
-                CAMHAL_LOGDB("Capture mode set %s", valstr);
-                mParameters.set(TICameraParameters::KEY_CAP_MODE, valstr);
-                }
+            if( (valstr = params.get(TICameraParameters::KEY_CAP_MODE)) != NULL) {
+
+                    if (strcmp(TICameraParameters::VIDEO_MODE, valstr)) {
+                        mCapModeBackup = valstr;
+                    }
+
+                    CAMHAL_LOGDB("Capture mode set %s", valstr);
+
+                    const char *currentMode = mParameters.get(TICameraParameters::KEY_CAP_MODE);
+                    if ( NULL != currentMode ) {
+                        if ( strcmp(currentMode, valstr) != 0 ) {
+                            updateRequired = true;
+                        }
+                    } else {
+                        updateRequired = true;
+                    }
+
+                    mParameters.set(TICameraParameters::KEY_CAP_MODE, valstr);
+            } else if (!mCapModeBackup.isEmpty()) {
+                // Restore previous capture mode after stopPreview()
+                mParameters.set(TICameraParameters::KEY_CAP_MODE,
+                                mCapModeBackup.string());
+                updateRequired = true;
+            }
+
 
             if ((valstr = params.get(TICameraParameters::KEY_IPP)) != NULL) {
                 if (isParameterValid(valstr,mCameraProperties->get(CameraProperties::SUPPORTED_IPP_MODES))) {
@@ -1882,6 +1902,10 @@ status_t CameraHal::startRecording( )
     }
 
     if (restartPreviewRequired) {
+        {
+            android::AutoMutex lock(mLock);
+            mCapModeBackup = mParameters.get(TICameraParameters::KEY_CAP_MODE);
+        }
         ret = restartPreview();
     }
 
@@ -2063,31 +2087,22 @@ bool CameraHal::resetVideoModeParameters()
  */
 status_t CameraHal::restartPreview()
 {
-    const char *valstr = NULL;
-    char tmpvalstr[30];
     status_t ret = NO_ERROR;
 
     LOG_FUNCTION_NAME;
 
     // Retain CAPTURE_MODE before calling stopPreview(), since it is reset in stopPreview().
-    tmpvalstr[0] = 0;
-    valstr = mParameters.get(TICameraParameters::KEY_CAP_MODE);
-    if(valstr != NULL)
-        {
-        if(sizeof(tmpvalstr) < (strlen(valstr)+1))
-            {
-            return -EINVAL;
-            }
-
-        strncpy(tmpvalstr, valstr, sizeof(tmpvalstr));
-        tmpvalstr[sizeof(tmpvalstr)-1] = 0;
-        }
 
     forceStopPreview();
 
     {
-        Mutex::Autolock lock(mLock);
-        mParameters.set(TICameraParameters::KEY_CAP_MODE, tmpvalstr);
+        android::AutoMutex lock(mLock);
+        if (!mCapModeBackup.isEmpty()) {
+            mParameters.set(TICameraParameters::KEY_CAP_MODE, mCapModeBackup.string());
+            mCapModeBackup = "";
+        } else {
+            mParameters.set(TICameraParameters::KEY_CAP_MODE, "");
+        }
         mCameraAdapter->setParameters(mParameters);
     }
 
@@ -2478,7 +2493,7 @@ status_t CameraHal::takePicture( )
     status_t ret = NO_ERROR;
     CameraFrame frame;
     CameraAdapter::BuffersDescriptor desc;
-    int burst;
+    int burst = -1;
     const char *valstr = NULL;
     unsigned int bufferCount = 1;
 
@@ -2516,36 +2531,52 @@ status_t CameraHal::takePicture( )
         return INVALID_OPERATION;
     }
 
-    if ( !mBracketingRunning )
-        {
+    // if we are already in the middle of a capture...then we just need
+    // setParameters and start image capture to queue more shots
+    if (((mCameraAdapter->getState() & CameraAdapter::CAPTURE_STATE) ==
+              CameraAdapter::CAPTURE_STATE) &&
+         (mCameraAdapter->getNextState() != CameraAdapter::PREVIEW_STATE)) {
+#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
+        //pass capture timestamp along with the camera adapter command
+        ret = mCameraAdapter->sendCommand(CameraAdapter::CAMERA_START_IMAGE_CAPTURE,
+                                          (int) &mStartCapture);
+#else
+        ret = mCameraAdapter->sendCommand(CameraAdapter::CAMERA_START_IMAGE_CAPTURE);
+#endif
+        return ret;
+    }
 
-         if ( NO_ERROR == ret )
-            {
+    if ( !mBracketingRunning )
+    {
+         // if application didn't set burst through ShotParameters
+         // then query from TICameraParameters
+         if ((burst == -1) && (NO_ERROR == ret)) {
             burst = mParameters.getInt(TICameraParameters::KEY_BURST);
-            }
+         }
 
          //Allocate all buffers only in burst capture case
-         if ( burst > 1 )
-             {
-             bufferCount = CameraHal::NO_BUFFERS_IMAGE_CAPTURE;
-             if ( NULL != mAppCallbackNotifier.get() )
-                 {
+         if ( burst > 0 ) {
+             // For CPCam mode...allocate for worst case burst
+             bufferCount = (burst > CameraHal::NO_BUFFERS_IMAGE_CAPTURE) ?
+                               CameraHal::NO_BUFFERS_IMAGE_CAPTURE : burst;
+
+             if ( NULL != mAppCallbackNotifier.get() ) {
                  mAppCallbackNotifier->setBurst(true);
-                 }
              }
-         else
-             {
-             if ( NULL != mAppCallbackNotifier.get() )
-                 {
+         } else if ( mBracketingEnabled ) {
+             bufferCount = mBracketRangeNegative + 1;
+             if ( NULL != mAppCallbackNotifier.get() ) {
                  mAppCallbackNotifier->setBurst(false);
-                 }
              }
+         } else {
+             if ( NULL != mAppCallbackNotifier.get() ) {
+                 mAppCallbackNotifier->setBurst(false);
+             }
+         }
 
         // pause preview during normal image capture
         // do not pause preview if recording (video state)
-        if (NO_ERROR == ret &&
-                NULL != mDisplayAdapter.get() &&
-                burst < 1) {
+        if ( (NO_ERROR == ret) && (NULL != mDisplayAdapter.get()) ) {
             if (mCameraAdapter->getState() != CameraAdapter::VIDEO_STATE) {
                 mDisplayPaused = true;
                 mPreviewEnabled = false;
@@ -2585,10 +2616,7 @@ status_t CameraHal::takePicture( )
 
         if ( NO_ERROR == ret )
             {
-            mParameters.getPictureSize(( int * ) &frame.mWidth,
-                                       ( int * ) &frame.mHeight);
-
-            ret = allocImageBufs(frame.mWidth,
+             ret = allocImageBufs(frame.mWidth,
                                  frame.mHeight,
                                  frame.mLength,
                                  mParameters.getPictureFormat(),
