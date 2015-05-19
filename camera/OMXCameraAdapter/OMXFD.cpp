@@ -114,6 +114,23 @@ void OMXCameraAdapter::pauseFaceDetection(bool pause)
     }
 }
 
+status_t OMXCameraAdapter::setFaceDetectionOrientation(OMX_U32 orientation)
+{
+    status_t ret = NO_ERROR;
+
+    android::AutoMutex lock(mFaceDetectionLock);
+
+    mDeviceOrientation = orientation;
+
+    if (mFaceDetectionRunning) {
+        // restart face detection with new rotation
+        setFaceDetection(true, orientation);
+    }
+
+    return ret;
+}
+
+
 status_t OMXCameraAdapter::setFaceDetection(bool enable, OMX_U32 orientation)
 {
     status_t ret = NO_ERROR;

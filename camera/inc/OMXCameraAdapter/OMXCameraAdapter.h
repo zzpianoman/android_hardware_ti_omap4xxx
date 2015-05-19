@@ -231,7 +231,7 @@ public:
 
     enum CodingMode
         {
-        CodingNone = 0,
+        CodingJPEG = 0,
         CodingJPS,
         CodingMPO,
         CodingRAWJPEG,
@@ -555,6 +555,7 @@ private:
                              BaseCameraAdapter::AdapterState state);
     status_t updateFocusDistances(CameraParameters &params);
     status_t setFaceDetection(bool enable, OMX_U32 orientation);
+    status_t setFaceDetectionOrientation(OMX_U32 orientation);
     status_t detectFaces(OMX_BUFFERHEADERTYPE* pBuffHeader,
                          sp<CameraFDResult> &result,
                          size_t previewWidth,
@@ -959,6 +960,8 @@ private:
     OMX_BOOL mUserSetWbLock;
 
     bool mPreviewPortInitialized;
+
+    bool mSetFormatDone;
 
 };
 }; //// namespace
