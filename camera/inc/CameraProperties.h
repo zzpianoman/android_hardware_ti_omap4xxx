@@ -53,6 +53,7 @@ public:
     static const char SUPPORTED_PREVIEW_SIZES[];
     static const char SUPPORTED_PREVIEW_FORMATS[];
     static const char SUPPORTED_PREVIEW_FRAME_RATES[];
+    static const char SUPPORTED_PREVIEW_FRAME_RATES_EXT[];
     static const char SUPPORTED_PICTURE_SIZES[];
     static const char SUPPORTED_PICTURE_FORMATS[];
     static const char SUPPORTED_THUMBNAIL_SIZES[];
@@ -123,6 +124,7 @@ public:
     static const char FRAMERATE_RANGE_IMAGE[];
     static const char FRAMERATE_RANGE_VIDEO[];
     static const char FRAMERATE_RANGE_SUPPORTED[];
+    static const char FRAMERATE_RANGE_EXT_SUPPORTED[];
 
     static const char DEFAULT_VALUE[];
 

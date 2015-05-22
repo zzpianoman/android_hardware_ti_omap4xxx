@@ -65,6 +65,8 @@ static const char  KEY_GBCE[];
 static const char  KEY_GLBCE[];
 static const char  KEY_MINFRAMERATE[];
 static const char  KEY_MAXFRAMERATE[];
+static const char  KEY_FRAMERATE_RANGES_EXT_SUPPORTED[];
+static const char  KEY_FRAMERATES_EXT_SUPPORTED[];
 
 // TI recording hint to notify camera adapters of possible recording
 static const char  KEY_RECORDING_HINT[];
@@ -233,6 +235,8 @@ static const char ORIENTATION_SENSOR_270[];
 //TI values for camera direction
 static const char FACING_FRONT[];
 static const char FACING_BACK[];
+
+static const char KEY_PREVIEW_FRAME_RATE_RANGE[];
 
 };
 
