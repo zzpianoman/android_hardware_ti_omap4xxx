@@ -71,8 +71,6 @@
 #define SHARPNESS_OFFSET 100
 #define CONTRAST_OFFSET 100
 
-#define FRAME_RATE_HIGH_HD 60
-
 #define CAMHAL_GRALLOC_USAGE GRALLOC_USAGE_HW_TEXTURE | \
                              GRALLOC_USAGE_HW_RENDER | \
                              GRALLOC_USAGE_SW_READ_RARELY | \
@@ -117,6 +115,8 @@
 
 #endif
 
+
+
 #define NONNEG_ASSIGN(x,y) \
     if(x > -1) \
         y = x
@@ -130,67 +130,6 @@ class CameraHal;
 class CameraFrame;
 class CameraHalEvent;
 class DisplayFrame;
-
-class FpsRange {
-public:
-    static int compare(const FpsRange * left, const FpsRange * right);
-
-    FpsRange(int min, int max);
-    FpsRange();
-
-    bool operator==(const FpsRange & fpsRange) const;
-
-    bool isNull() const;
-    bool isFixed() const;
-
-    int min() const;
-    int max() const;
-
-private:
-    int mMin;
-    int mMax;
-};
-
-
-inline int FpsRange::compare(const FpsRange * const left, const FpsRange * const right) {
-    if ( left->max() < right->max() ) {
-        return -1;
-    }
-
-    if ( left->max() > right->max() ) {
-        return 1;
-    }
-
-    if ( left->min() < right->min() ) {
-        return -1;
-    }
-
-    if ( left->min() > right->min() ) {
-        return 1;
-    }
-
-    return 0;
-}
-
-inline FpsRange::FpsRange(const int min, const int max) : mMin(min), mMax(max) {}
-
-inline FpsRange::FpsRange() : mMin(-1), mMax(-1) {}
-
-inline bool FpsRange::operator==(const FpsRange & fpsRange) const {
-    return mMin == fpsRange.mMin && mMax == fpsRange.mMax;
-}
-
-inline bool FpsRange::isNull() const {
-    return mMin == -1 || mMax == -1;
-}
-
-inline bool FpsRange::isFixed() const {
-    return mMin == mMax;
-}
-
-inline int FpsRange::min() const { return mMin; }
-
-inline int FpsRange::max() const { return mMax; }
 
 class CameraArea : public RefBase
 {
@@ -1155,7 +1094,6 @@ public:
     static void eventCallbackRelay(CameraHalEvent* event);
     void eventCallback(CameraHalEvent* event);
     void setEventProvider(int32_t eventMask, MessageNotifier * eventProvider);
-    static bool parsePair(const char *str, int *first, int *second, char delim);
 
 /*--------------------Internal Member functions - Private---------------------------------*/
 private:
@@ -1200,10 +1138,6 @@ private:
     //Check if a given resolution is supported by the current camera
     //instance
     bool isResolutionValid(unsigned int width, unsigned int height, const char *supportedResolutions);
-
-    //Check if a given variable frame rate range is supported by the current camera
-    //instance
-    bool isFpsRangeValid(int fpsMin, int fpsMax, const char *supportedFpsRanges);
 
     //Check if a given parameter is supported by the current camera
     // instance

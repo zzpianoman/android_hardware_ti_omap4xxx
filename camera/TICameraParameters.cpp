@@ -70,8 +70,6 @@ const char TICameraParameters::KEY_MINFRAMERATE[] = "min-framerate";
 const char TICameraParameters::KEY_MAXFRAMERATE[] = "max-framerate";
 const char TICameraParameters::KEY_RECORDING_HINT[] = "internal-recording-hint";
 const char TICameraParameters::KEY_AUTO_FOCUS_LOCK[] = "auto-focus-lock";
-const char TICameraParameters::KEY_FRAMERATE_RANGES_EXT_SUPPORTED[] = "preview-fps-range-ext-values";
-const char TICameraParameters::KEY_FRAMERATES_EXT_SUPPORTED[] = "preview-fps-ext-values";
 
 //TI extensions for enabling/disabling GLBCE
 const char TICameraParameters::GLBCE_ENABLE[] = "enable";
@@ -200,8 +198,5 @@ const char TICameraParameters::ORIENTATION_SENSOR_NONE[] = "0";
 const char TICameraParameters::ORIENTATION_SENSOR_90[] = "90";
 const char TICameraParameters::ORIENTATION_SENSOR_180[] = "180";
 const char TICameraParameters::ORIENTATION_SENSOR_270[] = "270";
-
-const char TICameraParameters::KEY_PREVIEW_FRAME_RATE_RANGE[] = "preview-frame-rate-range";
-
 };
 

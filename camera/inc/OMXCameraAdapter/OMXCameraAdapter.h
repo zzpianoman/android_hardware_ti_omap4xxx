@@ -577,8 +577,8 @@ private:
     static status_t encodeSizeCap(OMX_TI_CAPRESTYPE&, const CapResolution *, size_t, char *, size_t);
     static status_t encodeISOCap(OMX_U32, const CapISO*, size_t, char*, size_t);
     static size_t encodeZoomCap(OMX_S32, const CapZoom*, size_t, char*, size_t);
-    static void encodeFrameRates(int minFrameRate, int maxFrameRate, const OMX_TI_CAPTYPE & caps,
-            const CapFramerate * fixedFrameRates, int frameRateCount, android::Vector<FpsRange> & fpsRanges);
+    static status_t encodeFramerateCap(OMX_U32, OMX_U32, const CapFramerate*, size_t, char*, size_t);
+    static status_t encodeVFramerateCap(OMX_TI_CAPTYPE&, const CapU32Pair*, size_t, char*, char*, size_t);
     static status_t encodePixelformatCap(OMX_COLOR_FORMATTYPE,
                                          const CapPixelformat*,
                                          size_t,
@@ -744,10 +744,6 @@ private:
     static const CapEVComp mEVCompRanges [];
     static const CapISO mISOStages [];
     static const CapU32Pair mVarFramerates [];
-
-    static const int FPS_MIN;
-    static const int FPS_MAX;
-    static const int FPS_MAX_EXTENDED;
 
     // OMX Camera defaults
     static const char DEFAULT_ANTIBANDING[];

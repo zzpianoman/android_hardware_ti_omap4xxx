@@ -38,6 +38,9 @@ namespace android {
  *************************************/
 
 #define ARRAY_SIZE(array) (sizeof((array)) / sizeof((array)[0]))
+#define FPS_MIN 5
+#define FPS_STEP 5
+#define FPS_RANGE_STEP 5
 
 static const char PARAM_SEP[] = ",";
 static const int PARAM_SEP_CHAR = ',';
@@ -45,14 +48,6 @@ static const uint32_t VFR_OFFSET = 8;
 static const char VFR_BACKET_START[] = "(";
 static const char VFR_BRACKET_END[] = ")";
 static const char FRAMERATE_COUNT = 10;
-
-const int OMXCameraAdapter::FPS_MIN = 5;
-const int OMXCameraAdapter::FPS_MAX = 30;
-const int OMXCameraAdapter::FPS_MAX_EXTENDED = 60;
-
-inline static int androidFromDucatiFrameRate(OMX_U32 frameRate) {
-    return (frameRate >> VFR_OFFSET) * CameraHal::VFR_SCALE;
-}
 
 /**** look up tables to translate OMX Caps to Parameter ****/
 
@@ -119,12 +114,8 @@ const CapPixelformat OMXCameraAdapter::mPixelformats [] = {
 };
 
 const CapFramerate OMXCameraAdapter::mFramerates [] = {
-    { 60, "60" },
     { 30, "30" },
-    { 24, "24" },
-    { 20, "20" },
     { 15, "15" },
-    { 10, "10" },
 };
 
 const CapZoom OMXCameraAdapter::mZoomStages [] = {
@@ -265,61 +256,124 @@ status_t OMXCameraAdapter::encodePixelformatCap(OMX_COLOR_FORMATTYPE format,
     return ret;
 }
 
-void OMXCameraAdapter::encodeFrameRates(const int minFrameRate, const int maxFrameRate,
-        const OMX_TI_CAPTYPE & caps, const CapFramerate * const fixedFrameRates,
-        const int frameRateCount, android::Vector<FpsRange> & fpsRanges) {
+status_t OMXCameraAdapter::encodeFramerateCap(OMX_U32 framerateMax,
+                            OMX_U32 framerateMin,
+                            const CapFramerate *cap,
+                            size_t capCount,
+                            char * buffer,
+                            size_t bufferSize) {
+    status_t ret = NO_ERROR;
+    bool minInserted = false;
+    bool maxInserted = false;
+    char tmpBuffer[FRAMERATE_COUNT];
+
     LOG_FUNCTION_NAME;
 
-    if ( minFrameRate == maxFrameRate ) {
-        // single fixed frame rate supported
-        fpsRanges.add(FpsRange(minFrameRate, maxFrameRate));
-        return;
+    if ( ( NULL == buffer ) || ( NULL == cap ) ) {
+        CAMHAL_LOGEA("Invalid input arguments");
+        return -EINVAL;
     }
 
-    // insert min and max frame rates
-    fpsRanges.add(FpsRange(minFrameRate, minFrameRate));
-    fpsRanges.add(FpsRange(maxFrameRate, maxFrameRate));
+    for ( unsigned int i = 0; i < capCount; i++ ) {
+        if ( (framerateMax >= cap[i].num) && (framerateMin <= cap[i].num) ) {
+            strncat(buffer, cap[i].param, bufferSize - 1);
+            strncat(buffer, PARAM_SEP, bufferSize - 1);
 
-    // insert variable frame rates
-    for ( int i = 0; i < static_cast<int>(caps.ulPrvVarFPSModesCount); ++i ) {
-        const FpsRange fpsRange = FpsRange(
-                max(androidFromDucatiFrameRate(caps.tPrvVarFPSModes[i].nVarFPSMin), minFrameRate),
-                min(androidFromDucatiFrameRate(caps.tPrvVarFPSModes[i].nVarFPSMax), maxFrameRate));
-
-        if ( fpsRange.isFixed() ) {
-            // this range is either min or max fixed frame rate, already added above
-            continue;
+            if ( cap[i].num ==  framerateMin ) {
+                minInserted = true;
+            }
         }
-
-        fpsRanges.add(fpsRange);
-    }
-
-    // insert fixed frame rates
-    for ( int i = 0; i < frameRateCount; ++i ) {
-        const int fixedFrameRate = fixedFrameRates[i].num * CameraHal::VFR_SCALE;
-
-        if ( fixedFrameRate < minFrameRate || fixedFrameRate > maxFrameRate ) {
-            // not supported by hardware
-            continue;
-        }
-
-        const FpsRange fpsRange = FpsRange(fixedFrameRate, fixedFrameRate);
-        fpsRanges.add(fpsRange);
-    }
-
-    // sort first by max, then by min, according to Android API requirements
-    fpsRanges.sort(FpsRange::compare);
-
-    // remove duplicated frame rates
-    for ( int i = 0; i < static_cast<int>(fpsRanges.size()) - 1; ) {
-        const FpsRange & current = fpsRanges.itemAt(i);
-        const FpsRange & next = fpsRanges.itemAt(i + 1);
-        if ( current == next ) {
-            fpsRanges.removeAt(i + 1);
-        } else {
-            i++;
+        if ( cap[i].num ==  framerateMax ) {
+            maxInserted = true;
         }
     }
+
+    if ( !maxInserted ) {
+        memset(tmpBuffer, 0, FRAMERATE_COUNT);
+        snprintf(tmpBuffer, FRAMERATE_COUNT - 1, "%u,", ( unsigned int ) framerateMax);
+        strncat(buffer, tmpBuffer, bufferSize - 1);
+        strncat(buffer, PARAM_SEP, bufferSize - 1);
+    }
+
+    if ( !minInserted ) {
+        memset(tmpBuffer, 0, FRAMERATE_COUNT);
+        snprintf(tmpBuffer, FRAMERATE_COUNT - 1, "%u,", ( unsigned int ) framerateMin);
+        strncat(buffer, tmpBuffer, bufferSize - 1);
+        strncat(buffer, PARAM_SEP, bufferSize - 1);
+    }
+
+    remove_last_sep(buffer);
+
+    LOG_FUNCTION_NAME_EXIT;
+
+    return ret;
+}
+
+status_t OMXCameraAdapter::encodeVFramerateCap(OMX_TI_CAPTYPE &caps,
+                                               const CapU32Pair *cap,
+                                               size_t capCount,
+                                               char *buffer,
+                                               char *defaultRange,
+                                               size_t bufferSize) {
+    status_t ret = NO_ERROR;
+    uint32_t minVFR, maxVFR;
+    int default_index = -1;
+
+    LOG_FUNCTION_NAME;
+
+    if ( (NULL == buffer) || (NULL == cap) ) {
+        CAMHAL_LOGEA("Invalid input arguments");
+        return -EINVAL;
+    }
+
+    if(caps.ulPrvVarFPSModesCount < 1) {
+        return NO_ERROR;
+    }
+
+    // Assumption: last range in tPrvVarFPSModes will be for S30FPSHD mode
+    minVFR = caps.tPrvVarFPSModes[caps.ulPrvVarFPSModesCount-1].nVarFPSMin >> VFR_OFFSET;
+    maxVFR = caps.tPrvVarFPSModes[caps.ulPrvVarFPSModesCount-1].nVarFPSMax >> VFR_OFFSET;
+
+    if (minVFR < FPS_MIN) {
+        minVFR = FPS_MIN;
+    }
+
+    for (unsigned int i = 0; i < capCount; i++) {
+        // add cap[i] if it is in range and maxVFR != minVFR
+        if ((maxVFR >= cap[i].num1) && (minVFR <= cap[i].num2)) {
+            if (buffer[0] != '\0') {
+                strncat(buffer, PARAM_SEP, bufferSize - 1);
+            }
+            strncat(buffer, cap[i].param, bufferSize - 1);
+
+            // choose the max variable framerate as default
+            if (cap[i].num1 != cap[i].num2) {
+                default_index = i;
+            }
+        }
+    }
+
+    // if we haven't found any caps in the list to populate
+    // just use the min and max
+    if (buffer[0] == '\0') {
+        snprintf(buffer, bufferSize - 1,
+             "(%u,%u)",
+             minVFR * CameraHal::VFR_SCALE,
+             maxVFR * CameraHal::VFR_SCALE);
+    }
+
+    if (default_index != -1) {
+        snprintf(defaultRange, (MAX_PROP_VALUE_LENGTH - 1), "%lu,%lu",
+                 cap[default_index].num2 * CameraHal::VFR_SCALE,
+                 cap[default_index].num1 * CameraHal::VFR_SCALE);
+    } else {
+        snprintf(defaultRange, (MAX_PROP_VALUE_LENGTH - 1), "%u,%u",
+                 minVFR * CameraHal::VFR_SCALE, maxVFR * CameraHal::VFR_SCALE);
+    }
+
+    LOG_FUNCTION_NAME_EXIT;
+
+    return ret;
 }
 
 size_t OMXCameraAdapter::encodeZoomCap(OMX_S32 maxZoom,
@@ -608,132 +662,62 @@ status_t OMXCameraAdapter::insertPreviewFormats(CameraProperties::Properties* pa
     return ret;
 }
 
-status_t OMXCameraAdapter::insertFramerates(CameraProperties::Properties* params, OMX_TI_CAPTYPE &caps)
-{
-    // collect supported normal frame rates
-    {
-        android::Vector<FpsRange> fpsRanges;
+status_t OMXCameraAdapter::insertFramerates(CameraProperties::Properties* params, OMX_TI_CAPTYPE &caps) {
+    status_t ret = NO_ERROR;
+    char supported[MAX_PROP_VALUE_LENGTH];
 
-	// HASH: Fix JEM Amazon Ducati xFramerates which are [1 .. 30] vs [256 .. 7680]
-        int minFrameRate = -1;
-	if (caps.xFramerateMin >= 50) {
-		minFrameRate = max<int>(FPS_MIN * CameraHal::VFR_SCALE, androidFromDucatiFrameRate(caps.xFramerateMin));
-	} else {
-		minFrameRate = max<int>(FPS_MIN * CameraHal::VFR_SCALE, androidFromDucatiFrameRate(caps.xFramerateMin << 8));
-	}
-        int maxFrameRate = -1;
-	if (caps.xFramerateMax >= 50) {
-		maxFrameRate = min<int>(FPS_MAX * CameraHal::VFR_SCALE, androidFromDucatiFrameRate(caps.xFramerateMax));
-	} else {
-		maxFrameRate = min<int>(FPS_MAX * CameraHal::VFR_SCALE, androidFromDucatiFrameRate(caps.xFramerateMax << 8));
-	}
-        if ( minFrameRate > maxFrameRate ) {
-            CAMHAL_LOGE("Invalid frame rate range: [%d .. %d]", caps.xFramerateMin, caps.xFramerateMax);
-            return BAD_VALUE;
-        }
+    LOG_FUNCTION_NAME;
 
-        encodeFrameRates(minFrameRate, maxFrameRate, caps, mFramerates, ARRAY_SIZE(mFramerates), fpsRanges);
+    memset(supported, '\0', MAX_PROP_VALUE_LENGTH);
 
-        // populate variable frame rates
-        char supported[MAX_PROP_VALUE_LENGTH];
-        char defaultRange[MAX_PROP_VALUE_LENGTH];
+    ret = encodeFramerateCap(caps.xFramerateMax >> VFR_OFFSET,
+                             caps.xFramerateMin >> VFR_OFFSET,
+                             mFramerates,
+                             ARRAY_SIZE(mFramerates),
+                             supported,
+                             MAX_PROP_VALUE_LENGTH);
 
-        memset(supported, 0, sizeof(supported));
-        memset(defaultRange, 0, sizeof(defaultRange));
-
-        for ( int i = 0; i < static_cast<int>(fpsRanges.size()); ++i ) {
-            const FpsRange & fpsRange = fpsRanges.itemAt(i);
-            if ( supported[0] ) strncat(supported, PARAM_SEP, 1);
-            char tmp[MAX_PROP_VALUE_LENGTH];
-            snprintf(tmp, sizeof(tmp) - 1, "(%d,%d)", fpsRange.min(), fpsRange.max());
-            strcat(supported, tmp);
-        }
-
-        const FpsRange & defaultFpsRange = fpsRanges.itemAt(fpsRanges.size() - 1);
-        snprintf(defaultRange, sizeof(defaultRange) - 1, "%d,%d", defaultFpsRange.min(), defaultFpsRange.max());
-
-        CAMHAL_LOGD("Supported framerate ranges: %s", supported);
-        CAMHAL_LOGD("Default framerate range: [%s]", defaultRange);
-
-        params->set(CameraProperties::FRAMERATE_RANGE_SUPPORTED, supported);
-        params->set(CameraProperties::FRAMERATE_RANGE, defaultRange);
-
-        // populate fixed frame rates
-        memset(supported, 0, sizeof(supported));
-        memset(defaultRange, 0, sizeof(defaultRange));
-
-        for ( int i = 0; i < static_cast<int>(fpsRanges.size()); ++i ) {
-            const FpsRange & fpsRange = fpsRanges.itemAt(i);
-            if ( fpsRange.isFixed() && (fpsRange.min()%CameraHal::VFR_SCALE) == 0 ) {
-                if ( supported[0] ) strncat(supported, PARAM_SEP, 1);
-                char tmp[MAX_PROP_VALUE_LENGTH];
-                snprintf(tmp, sizeof(tmp) - 1, "%d", fpsRange.min()/CameraHal::VFR_SCALE);
-                strcat(supported, tmp);
-            }
-        }
-
-        CAMHAL_LOGD("Supported preview framerates: %s", supported);
+    if ( NO_ERROR != ret ) {
+        CAMHAL_LOGEB("Error inserting supported preview framerates 0x%x", ret);
+    } else {
         params->set(CameraProperties::SUPPORTED_PREVIEW_FRAME_RATES, supported);
-
-        // insert default frame rate only if it is fixed
-        if ( defaultFpsRange.isFixed() && (defaultFpsRange.min()%CameraHal::VFR_SCALE) == 0 ) {
-            snprintf(defaultRange, sizeof(defaultRange) - 1, "%d", defaultFpsRange.min()/CameraHal::VFR_SCALE);
-            params->set(CameraProperties::PREVIEW_FRAME_RATE, defaultRange);
-        }
     }
 
-    // collect supported extended frame rates
-    {
-        android::Vector<FpsRange> fpsRanges;
+    LOG_FUNCTION_NAME;
 
-	// HASH: Fix JEM Amazon Ducati xFramerates which are [1 .. 30] vs [256 .. 7680]
-        int minFrameRate = -1;
-	if (caps.xFramerateMin >= 50) {
-		minFrameRate = max<int>(FPS_MIN * CameraHal::VFR_SCALE, androidFromDucatiFrameRate(caps.xFramerateMin));
-	} else {
-		minFrameRate = max<int>(FPS_MIN * CameraHal::VFR_SCALE, androidFromDucatiFrameRate(caps.xFramerateMin << 8));
-	}
-        int maxFrameRate = -1;
-	if (caps.xFramerateMax >= 50) {
-		maxFrameRate = min<int>(FPS_MAX_EXTENDED * CameraHal::VFR_SCALE, androidFromDucatiFrameRate(caps.xFramerateMax));
-	} else {
-		maxFrameRate = min<int>(FPS_MAX_EXTENDED * CameraHal::VFR_SCALE, androidFromDucatiFrameRate(caps.xFramerateMax << 8));
-	}
-        encodeFrameRates(minFrameRate, maxFrameRate, caps, mFramerates, ARRAY_SIZE(mFramerates), fpsRanges);
+    return ret;
+}
 
-        // populate variable frame rates
-        char supported[MAX_PROP_VALUE_LENGTH];
-        memset(supported, 0, sizeof(supported) - 1);
+status_t OMXCameraAdapter::insertVFramerates(CameraProperties::Properties* params, OMX_TI_CAPTYPE &caps) {
+    status_t ret = NO_ERROR;
+    char supported[MAX_PROP_VALUE_LENGTH];
+    char defaultRange[MAX_PROP_VALUE_LENGTH];
 
-        for ( int i = 0; i < static_cast<int>(fpsRanges.size()); ++i ) {
-            const FpsRange & fpsRange = fpsRanges.itemAt(i);
-            if ( supported[0] ) strncat(supported, PARAM_SEP, 1);
-            char tmp[MAX_PROP_VALUE_LENGTH];
-            snprintf(tmp, sizeof(tmp) - 1, "(%d,%d)", fpsRange.min(), fpsRange.max());
-            strcat(supported, tmp);
-        }
+    LOG_FUNCTION_NAME;
 
-        //CAMHAL_LOGD("Supported framerate ranges extended: %s", supported);
-        params->set(CameraProperties::FRAMERATE_RANGE_EXT_SUPPORTED, supported);
+    memset(supported, '\0', MAX_PROP_VALUE_LENGTH);
 
-        // populate fixed frame rates
-        memset(supported, 0, sizeof(supported) - 1);
+    ret = encodeVFramerateCap(caps,
+                              mVarFramerates,
+                              ARRAY_SIZE(mVarFramerates),
+                              supported,
+                              defaultRange,
+                              MAX_PROP_VALUE_LENGTH);
 
-        for ( int i = 0; i < static_cast<int>(fpsRanges.size()); ++i ) {
-            const FpsRange & fpsRange = fpsRanges.itemAt(i);
-            if ( fpsRange.isFixed() && (fpsRange.min()%CameraHal::VFR_SCALE) == 0 ) {
-                if ( supported[0] ) strncat(supported, PARAM_SEP, 1);
-                char tmp[MAX_PROP_VALUE_LENGTH];
-                snprintf(tmp, sizeof(tmp) - 1, "%d", fpsRange.min()/CameraHal::VFR_SCALE);
-                strcat(supported, tmp);
-            }
-        }
-
-        //CAMHAL_LOGD("Supported extended preview framerates: %s", supported);
-        params->set(CameraProperties::SUPPORTED_PREVIEW_FRAME_RATES_EXT, supported);
+    if ( NO_ERROR != ret ) {
+        CAMHAL_LOGEB("Error inserting supported preview framerate ranges 0x%x", ret);
+    } else {
+        params->set(CameraProperties::FRAMERATE_RANGE_SUPPORTED, supported);
+        CAMHAL_LOGDB("framerate ranges %s", supported);
+        params->set(CameraProperties::FRAMERATE_RANGE, DEFAULT_FRAMERATE_RANGE_IMAGE);
+        params->set(CameraProperties::FRAMERATE_RANGE_VIDEO, DEFAULT_FRAMERATE_RANGE_VIDEO);
+        params->set(CameraProperties::FRAMERATE_RANGE_IMAGE, DEFAULT_FRAMERATE_RANGE_IMAGE);
+        CAMHAL_LOGDB("Default framerate range: [%s]", DEFAULT_FRAMERATE_RANGE_IMAGE);
     }
 
-    return OK;
+    LOG_FUNCTION_NAME;
+
+    return ret;
 }
 
 status_t OMXCameraAdapter::insertEVs(CameraProperties::Properties* params, OMX_TI_CAPTYPE &caps) {

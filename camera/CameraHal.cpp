@@ -536,65 +536,98 @@ int CameraHal::setParameters(const CameraParameters& params)
 
 #endif
 
-        // Variable framerate ranges have higher priority over
-        // deprecated constant FPS.
-        // There is possible 3 situations :
-        // 1) User change FPS range and HAL use it for fps port value (don't care about
-        //    changed or not const FPS).
-        // 2) User change single FPS and not change FPS range - will be applyed single FPS value
-        //    to port.
-        // 3) Both FPS range and const FPS are unchanged - FPS range will be applied to port.
-
-        int curFramerate = 0;
-        bool frameRangeUpdated = false, fpsUpdated = false;
-        int curMaxFPS = 0, curMinFPS = 0, maxFPS = 0, minFPS = 0;
-
-        mParameters.getPreviewFpsRange(&curMinFPS, &curMaxFPS);
-        params.getPreviewFpsRange(&minFPS, &maxFPS);
-
-        curFramerate = mParameters.getPreviewFrameRate();
         framerate = params.getPreviewFrameRate();
+        valstr = params.get(CameraParameters::KEY_PREVIEW_FPS_RANGE);
+        CAMHAL_LOGDB("FRAMERATE %d", framerate);
 
-        valstr = params.get(android::CameraParameters::KEY_PREVIEW_FPS_RANGE);
-        if (valstr != NULL && strlen(valstr) &&
-                ((curMaxFPS != maxFPS) || (curMinFPS != minFPS))) {
-            //CAMHAL_LOGDB("## current minFPS = %d; maxFPS=%d", curMinFPS, curMaxFPS);
-            //CAMHAL_LOGDB("## requested minFPS = %d; maxFPS=%d", minFPS, maxFPS);
-            if (!isFpsRangeValid(minFPS, maxFPS, params.get(android::CameraParameters::KEY_SUPPORTED_PREVIEW_FPS_RANGE)) &&
-                !isFpsRangeValid(minFPS, maxFPS, params.get(TICameraParameters::KEY_FRAMERATE_RANGES_EXT_SUPPORTED))) {
-                //CAMHAL_LOGEA("Trying to set invalid FPS Range (%d,%d)", minFPS, maxFPS);
+        CAMHAL_LOGVB("Passed FRR: %s, Supported FRR %s", valstr
+                        , mCameraProperties->get(CameraProperties::FRAMERATE_RANGE_SUPPORTED));
+        CAMHAL_LOGVB("Passed FR: %d, Supported FR %s", framerate
+                        , mCameraProperties->get(CameraProperties::SUPPORTED_PREVIEW_FRAME_RATES));
+
+
+        //Perform parameter validation
+        if(!isParameterValid(valstr
+                        , mCameraProperties->get(CameraProperties::FRAMERATE_RANGE_SUPPORTED))
+                        || !isParameterValid(framerate,
+                                      mCameraProperties->get(CameraProperties::SUPPORTED_PREVIEW_FRAME_RATES)))
+        {
+            CAMHAL_LOGEA("Invalid frame rate range or frame rate");
+            return BAD_VALUE;
+        }
+
+        // Variable framerate ranges have higher priority over
+        // deprecated constant FPS. "KEY_PREVIEW_FPS_RANGE" should
+        // be cleared by the client in order for constant FPS to get
+        // applied.
+        if ( strcmp(valstr, mCameraProperties->get(CameraProperties::FRAMERATE_RANGE))  != 0)
+          {
+            // APP wants to set FPS range
+            //Set framerate = MAXFPS
+            CAMHAL_LOGDA("APP IS CHANGING FRAME RATE RANGE");
+            params.getPreviewFpsRange(&minFPS, &maxFPS);
+
+            if ( ( 0 > minFPS ) || ( 0 > maxFPS ) )
+              {
+                CAMHAL_LOGEA("ERROR: FPS Range is negative!");
                 return BAD_VALUE;
-            }
-            mParameters.set(android::CameraParameters::KEY_PREVIEW_FPS_RANGE, valstr);
-            //CAMHAL_LOGDB("FPS Range = %s", valstr);
-            if ( curMaxFPS == (FRAME_RATE_HIGH_HD * CameraHal::VFR_SCALE) &&
-                 maxFPS < (FRAME_RATE_HIGH_HD * CameraHal::VFR_SCALE) ) {
-                restartPreviewRequired = true;
-            }
-            frameRangeUpdated = true;
-        }
+              }
 
-        valstr = params.get(android::CameraParameters::KEY_PREVIEW_FRAME_RATE);
-        if (valstr != NULL && strlen(valstr) && (framerate != curFramerate)) {
-            //CAMHAL_LOGD("current framerate = %d reqested framerate = %d", curFramerate, framerate);
-            if (!isParameterValid(framerate, params.get(android::CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES)) &&
-                !isParameterValid(framerate, params.get(TICameraParameters::KEY_FRAMERATES_EXT_SUPPORTED))) {
-                //CAMHAL_LOGEA("Trying to set invalid frame rate %d", framerate);
-                return BAD_VALUE;
-            }
-            mParameters.setPreviewFrameRate(framerate);
-            //CAMHAL_LOGDB("Set frame rate %d", framerate);
-            fpsUpdated = true;
-        }
+            framerate = maxFPS /CameraHal::VFR_SCALE;
 
-        if (frameRangeUpdated) {
-            mParameters.set(TICameraParameters::KEY_PREVIEW_FRAME_RATE_RANGE,
-                    mParameters.get(android::CameraParameters::KEY_PREVIEW_FPS_RANGE));
-        } else if (fpsUpdated) {
-            char tmpBuffer[MAX_PROP_VALUE_LENGTH];
-            sprintf(tmpBuffer, "%d,%d", framerate * CameraHal::VFR_SCALE, framerate * CameraHal::VFR_SCALE);
-            mParameters.set(TICameraParameters::KEY_PREVIEW_FRAME_RATE_RANGE, tmpBuffer);
-        }
+          }
+        else
+          {
+              if ( framerate != atoi(mCameraProperties->get(CameraProperties::PREVIEW_FRAME_RATE)) )
+              {
+
+                selectFPSRange(framerate, &minFPS, &maxFPS);
+                CAMHAL_LOGDB("Select FPS Range %d %d", minFPS, maxFPS);
+              }
+              else
+                {
+                    if (videoMode) {
+                        valstr = mCameraProperties->get(CameraProperties::FRAMERATE_RANGE_VIDEO);
+                        CameraParameters temp;
+                        temp.set(CameraParameters::KEY_PREVIEW_FPS_RANGE, valstr);
+                        temp.getPreviewFpsRange(&minFPS, &maxFPS);
+                    }
+                    else {
+                        valstr = mCameraProperties->get(CameraProperties::FRAMERATE_RANGE_IMAGE);
+                        CameraParameters temp;
+                        temp.set(CameraParameters::KEY_PREVIEW_FPS_RANGE, valstr);
+                        temp.getPreviewFpsRange(&minFPS, &maxFPS);
+                    }
+
+                    framerate = maxFPS / CameraHal::VFR_SCALE;
+                }
+
+          }
+
+        CAMHAL_LOGDB("FPS Range = %s", valstr);
+        CAMHAL_LOGDB("DEFAULT FPS Range = %s", mCameraProperties->get(CameraProperties::FRAMERATE_RANGE));
+
+        minFPS /= CameraHal::VFR_SCALE;
+        maxFPS /= CameraHal::VFR_SCALE;
+
+        if ( ( 0 == minFPS ) || ( 0 == maxFPS ) )
+          {
+            CAMHAL_LOGEA("ERROR: FPS Range is invalid!");
+            return BAD_VALUE;
+          }
+
+        if ( maxFPS < minFPS )
+          {
+            CAMHAL_LOGEA("ERROR: Max FPS is smaller than Min FPS!");
+            return BAD_VALUE;
+          }
+        CAMHAL_LOGDB("SET FRAMERATE %d", framerate);
+        mParameters.setPreviewFrameRate(framerate);
+        mParameters.set(CameraParameters::KEY_PREVIEW_FPS_RANGE, params.get(CameraParameters::KEY_PREVIEW_FPS_RANGE));
+
+        CAMHAL_LOGDB("FPS Range [%d, %d]", minFPS, maxFPS);
+        mParameters.set(TICameraParameters::KEY_MINFRAMERATE, minFPS);
+        mParameters.set(TICameraParameters::KEY_MAXFRAMERATE, maxFPS);
 
         if( ( valstr = params.get(TICameraParameters::KEY_GBCE) ) != NULL )
             {
@@ -3114,44 +3147,6 @@ bool CameraHal::isResolutionValid(unsigned int width, unsigned int height, const
         }
 
 exit:
-
-    LOG_FUNCTION_NAME_EXIT;
-
-    return ret;
-}
-
-bool CameraHal::isFpsRangeValid(int fpsMin, int fpsMax, const char *supportedFpsRanges)
-{
-    bool ret = false;
-    char supported[MAX_PROP_VALUE_LENGTH];
-    char *pos;
-    int suppFpsRangeArray[2];
-    int i = 0;
-
-    LOG_FUNCTION_NAME;
-
-    if ( NULL == supportedFpsRanges ) {
-        //CAMHAL_LOGEA("Invalid supported FPS ranges string");
-        return false;
-    }
-
-    if (fpsMin <= 0 || fpsMax <= 0 || fpsMin > fpsMax) {
-        return false;
-    }
-
-    strncpy(supported, supportedFpsRanges, MAX_PROP_VALUE_LENGTH);
-    pos = strtok(supported, " (,)");
-    while (pos != NULL) {
-        suppFpsRangeArray[i] = atoi(pos);
-        if (i++) {
-            if (fpsMin >= suppFpsRangeArray[0] && fpsMax <= suppFpsRangeArray[1]) {
-                ret = true;
-                break;
-            }
-            i = 0;
-        }
-        pos = strtok(NULL, " (,)");
-    }
 
     LOG_FUNCTION_NAME_EXIT;
 
