@@ -363,8 +363,8 @@ int CameraHal::setParameters(const CameraParameters& params)
                 return BAD_VALUE;
               }
 
-            int oldWidth, oldHeight;
-            mParameters.getPreviewSize(&oldWidth, &oldHeight);
+            mVideoWidth = w;
+            mVideoHeight = h;
 
 #ifdef OMAP_ENHANCEMENT
 
@@ -409,17 +409,9 @@ int CameraHal::setParameters(const CameraParameters& params)
         if ( !isResolutionValid(w, h, mCameraProperties->get(CameraProperties::SUPPORTED_PREVIEW_SIZES))) {
             CAMHAL_LOGEB("Invalid preview resolution %d x %d", w, h);
             return BAD_VALUE;
-        } else {
-            mParameters.setPreviewSize(w, h);
-        }
+        } 
 
 #endif
-
-        if ( ( oldWidth != w ) || ( oldHeight != h ) ) {
-            restartPreviewRequired |= true;
-        }
-
-        CAMHAL_LOGDB("PreviewResolution by App %d x %d", w, h);
 
         // Handle RECORDING_HINT to Set/Reset Video Mode Parameters
         valstr = params.get(CameraParameters::KEY_RECORDING_HINT);
@@ -430,24 +422,6 @@ int CameraHal::setParameters(const CameraParameters& params)
                 CAMHAL_LOGDB("Recording Hint is set to %s", valstr);
                 mParameters.set(CameraParameters::KEY_RECORDING_HINT, valstr);
                 videoMode = true;
-                int w, h;
-
-                params.getPreviewSize(&w, &h);
-                CAMHAL_LOGVB("%s Preview Width=%d Height=%d\n", __FUNCTION__, w, h);
-                //HACK FOR MMS
-                mVideoWidth = w;
-                mVideoHeight = h;
-                CAMHAL_LOGVB("%s Video Width=%d Height=%d\n", __FUNCTION__, mVideoWidth, mVideoHeight);
-
-                setPreferredPreviewRes(w, h);
-                mParameters.getPreviewSize(&w, &h);
-                CAMHAL_LOGVB("%s Preview Width=%d Height=%d\n", __FUNCTION__, w, h);
-                //Avoid restarting preview for MMS HACK
-                if ((w != mVideoWidth) && (h != mVideoHeight))
-                    {
-                    restartPreviewRequired = false;
-                    }
-
                 restartPreviewRequired |= setVideoModeParameters(params);
                 }
             else if(strcmp(valstr, CameraParameters::FALSE) == 0)
@@ -456,7 +430,6 @@ int CameraHal::setParameters(const CameraParameters& params)
                 mParameters.set(CameraParameters::KEY_RECORDING_HINT, valstr);
 		videoMode = false;
                 restartPreviewRequired |= resetVideoModeParameters();
-                params.getPreviewSize(&mVideoWidth, &mVideoHeight);
                 }
             else
                 {
@@ -474,8 +447,17 @@ int CameraHal::setParameters(const CameraParameters& params)
             mParameters.set(CameraParameters::KEY_RECORDING_HINT, "");
 	    videoMode = false;
             restartPreviewRequired |= resetVideoModeParameters();
-            params.getPreviewSize(&mVideoWidth, &mVideoHeight);
             }
+
+        int oldWidth, oldHeight;
+        mParameters.getPreviewSize(&oldWidth, &oldHeight);
+        if ( ( oldWidth != w ) || ( oldHeight != h ) )
+            {
+            mParameters.setPreviewSize(w, h);
+            restartPreviewRequired = true;
+            }
+
+        CAMHAL_LOGDB("PreviewResolution by App %d x %d", w, h);
 
         if ((valstr = params.get(CameraParameters::KEY_FOCUS_MODE)) != NULL) {
             if (isParameterValid(valstr, mCameraProperties->get(CameraProperties::SUPPORTED_FOCUS_MODES))) {
@@ -573,14 +555,18 @@ int CameraHal::setParameters(const CameraParameters& params)
                 return BAD_VALUE;
               }
 
-            framerate = maxFPS /CameraHal::VFR_SCALE;
+            // Hack to fix video recording for MMS in Hangouts
+            if (framerate == 15) {
+                valstr = "15000,15000";
+                minFPS = maxFPS = 15000;
+            }
 
+            framerate = maxFPS / CameraHal::VFR_SCALE;
           }
         else
           {
               if ( framerate != atoi(mCameraProperties->get(CameraProperties::PREVIEW_FRAME_RATE)) )
               {
-
                 selectFPSRange(framerate, &minFPS, &maxFPS);
                 CAMHAL_LOGDB("Select FPS Range %d %d", minFPS, maxFPS);
               }
@@ -598,7 +584,6 @@ int CameraHal::setParameters(const CameraParameters& params)
                         temp.set(CameraParameters::KEY_PREVIEW_FPS_RANGE, valstr);
                         temp.getPreviewFpsRange(&minFPS, &maxFPS);
                     }
-
                     framerate = maxFPS / CameraHal::VFR_SCALE;
                 }
 
