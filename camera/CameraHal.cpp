@@ -2688,17 +2688,6 @@ char* CameraHal::getParameters()
 
     CameraParameters mParams = mParameters;
 
-    // Handle RECORDING_HINT to Set/Reset Video Mode Parameters
-    valstr = mParameters.get(CameraParameters::KEY_RECORDING_HINT);
-    if(valstr != NULL)
-      {
-        if(strcmp(valstr, CameraParameters::TRUE) == 0)
-          {
-            //HACK FOR MMS MODE
-            resetPreviewRes(&mParams, mVideoWidth, mVideoHeight);
-          }
-      }
-
     // do not send internal parameters to upper layers
     mParams.remove(TICameraParameters::KEY_RECORDING_HINT);
     mParams.remove(TICameraParameters::KEY_AUTO_FOCUS_LOCK);
