@@ -115,6 +115,7 @@ const CapPixelformat OMXCameraAdapter::mPixelformats [] = {
 
 const CapFramerate OMXCameraAdapter::mFramerates [] = {
     { 30, "30" },
+    { 24, "24" },
     { 15, "15" },
 };
 

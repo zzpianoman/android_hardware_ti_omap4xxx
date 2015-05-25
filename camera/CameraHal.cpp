@@ -561,7 +561,7 @@ int CameraHal::setParameters(const CameraParameters& params)
                 minFPS = maxFPS = 15000;
             }
 
-            framerate = maxFPS / CameraHal::VFR_SCALE;
+            //framerate = maxFPS / CameraHal::VFR_SCALE;
           }
         else
           {
