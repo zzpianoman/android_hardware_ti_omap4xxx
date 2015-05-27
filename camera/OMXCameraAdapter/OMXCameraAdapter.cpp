@@ -489,7 +489,17 @@ status_t OMXCameraAdapter::setParameters(const CameraParameters &params)
             setVFramerate(cap->mMinFrameRate, cap->mMaxFrameRate);
             }
         }
-    
+
+    // TODO(XXX): Limiting 1080p to (24,24) or (15,15) for now. Need to remove later.
+    if ((w >= 1920) && (h >= 1080)) {
+	if ( (cap->mMaxFrameRate >= 24) || (cap->mMinFrameRate >= 24) ) {
+	    cap->mMaxFrameRate = cap->mMinFrameRate = 24;
+	} else {
+            cap->mMaxFrameRate = cap->mMinFrameRate;
+	}
+        setVFramerate(cap->mMinFrameRate, cap->mMaxFrameRate);
+    }    
+
     if ( 0 < frameRate )
         {
         cap->mColorFormat = pixFormat;
