@@ -5,6 +5,8 @@ LOCAL_PATH:= $(call my-dir)
 OMAP4_CAMERA_HAL_USES:= OMX
 # OMAP4_CAMERA_HAL_USES:= USB
 
+CAMERAHAL_CFLAGS += $(ANDROID_API_CFLAGS)
+
 OMAP4_CAMERA_HAL_SRC := \
 	CameraHal_Module.cpp \
 	CameraHal.cpp \
@@ -85,7 +87,7 @@ LOCAL_SHARED_LIBRARIES:= \
     libjpeg \
     libjhead
 
-LOCAL_CFLAGS := -fno-short-enums -DCOPY_IMAGE_BUFFER
+LOCAL_CFLAGS := -fno-short-enums -DCOPY_IMAGE_BUFFER $(CAMERAHAL_CFLAGS)
 
 ifeq ($(OMAP_TUNA),true)
   LOCAL_CFLAGS += -DOMAP_TUNA
@@ -134,7 +136,7 @@ LOCAL_SHARED_LIBRARIES:= \
     libcamera_client \
     libion_ti \
 
-LOCAL_CFLAGS := -fno-short-enums -DCOPY_IMAGE_BUFFER
+LOCAL_CFLAGS := -fno-short-enums -DCOPY_IMAGE_BUFFER $(CAMERAHAL_CFLAGS)
 
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
 LOCAL_MODULE:= camera.$(TARGET_BOARD_PLATFORM)
