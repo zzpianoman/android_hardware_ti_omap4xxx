@@ -18,6 +18,8 @@
 #include <malloc.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stdint.h>
+#include <stdbool.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <sys/ioctl.h>
@@ -126,6 +128,23 @@ struct omap4_hwc_module {
 };
 typedef struct omap4_hwc_module omap4_hwc_module_t;
 
+struct counts {
+    unsigned int possible_overlay_layers;
+    unsigned int composited_layers;
+    unsigned int scaled_layers;
+    unsigned int RGB;
+    unsigned int BGR;
+    unsigned int NV12;
+    unsigned int dockable;
+    unsigned int protected;
+    uint32_t framebuffer; 
+
+    unsigned int max_hw_overlays;
+    unsigned int max_scaling_overlays;
+    unsigned int mem;
+};
+typedef struct counts counts_t;
+
 struct omap4_hwc_device {
     /* static data */
     hwc_composer_device_1_t base;
@@ -162,6 +181,8 @@ struct omap4_hwc_device {
     int last_ext_ovls;          /* # of overlays on external/internal display for last composition */
     int last_int_ovls;
     bool use_sw_vsync;
+
+    counts_t counts;
 
     display_t *displays[MAX_DISPLAYS]; 
 };
@@ -515,7 +536,6 @@ omap4_hwc_setup_layer(omap4_hwc_device_t *hwc_dev, struct dss2_ovl_info *ovl,
     oc->crop.w = WIDTH(layer->sourceCrop);
     oc->crop.h = HEIGHT(layer->sourceCrop);
 }
-
 const float m_unit[2][3] = { { 1., 0., 0. }, { 0., 1., 0. } };
 
 static inline void m_translate(float m[2][3], int dx, int dy)
@@ -979,22 +999,6 @@ static int omap4_hwc_set_best_hdmi_mode(omap4_hwc_device_t *hwc_dev, __u32 xres,
         ext->on_tv = 1;
     return 0;
 }
-
-struct counts {
-    unsigned int possible_overlay_layers;
-    unsigned int composited_layers;
-    unsigned int scaled_layers;
-    unsigned int RGB;
-    unsigned int BGR;
-    unsigned int NV12;
-    unsigned int dockable;
-    unsigned int protected;
-    uint32_t framebuffer; 
-
-    unsigned int max_hw_overlays;
-    unsigned int max_scaling_overlays;
-    unsigned int mem;
-};
 
 static void gather_layer_statistics(omap4_hwc_device_t *hwc_dev, struct counts *num, hwc_display_contents_1_t *list)
 {
@@ -2031,13 +2035,13 @@ static int omap4_hwc_blank(struct hwc_composer_device_1 *dev, int dpy, int blank
 
 static int hwc_getDisplayConfigs(struct hwc_composer_device_1* dev, int disp, uint32_t* configs, size_t* numConfigs)
 {
-    return get_display_configs((omap_hwc_device_t *)dev, disp, configs, numConfigs);
+    return get_display_configs((omap4_hwc_device_t *)dev, disp, configs, numConfigs);
 }
 
 static int hwc_getDisplayAttributes(struct hwc_composer_device_1* dev, int disp,
                                     uint32_t config, const uint32_t* attributes, int32_t* values)
 {
-    return get_display_attributes((omap_hwc_device_t *)dev, disp, config, attributes, values);
+    return get_display_attributes((omap4_hwc_device_t *)dev, disp, config, attributes, values);
 }
 
 static int omap4_hwc_device_open(const hw_module_t* module, const char* name,
