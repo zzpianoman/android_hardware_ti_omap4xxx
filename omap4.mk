@@ -37,9 +37,15 @@ PRODUCT_PACKAGES := \
 	libtf_crypto_sst \
 	libcorkscrew
 
+OMAP4_NEXT_FOLDER := hardware/ti/omap4xxx
+
 PRODUCT_VENDOR_KERNEL_HEADERS := hardware/ti/omap4xxx/kernel-headers
 
 # SELinux
 BOARD_SEPOLICY_DIRS += \
     $(OMAP4_NEXT_FOLDER)/sepolicy
+
+# Init
+PRODUCT_COPY_FILES += \
+    $(OMAP4_NEXT_FOLDER)/rootdir/init.omap4.rc:root/init.omap4.rc
 
