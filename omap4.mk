@@ -38,3 +38,8 @@ PRODUCT_PACKAGES := \
 	libcorkscrew
 
 PRODUCT_VENDOR_KERNEL_HEADERS := hardware/ti/omap4xxx/kernel-headers
+
+# SELinux
+BOARD_SEPOLICY_DIRS += \
+    $(OMAP4_NEXT_FOLDER)/sepolicy
+
